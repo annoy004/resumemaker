@@ -1,33 +1,53 @@
 import { Request, Response } from "express";
+import jwt from "jsonwebtoken";
 import { prisma } from "../prisma";
 
-export const ensureGoogleUser = async (req: Request, res: Response) => {
+export const googleAuth = async (req: Request, res: Response) => {
   try {
-    const { sub, email, name, picture } = req.body;
-
-    if (!sub || !email)
+    const { email, name, picture, sub } = req.body;
+    if (!email || !sub) {
       return res.status(400).json({ error: "Google user data missing" });
-
-    // Check if user exists
-    let user = await prisma.user.findUnique({ where: { googleSub: sub } });
-
-    if (user) {
-      return res.status(200).json({ message: "User already exists", user });
     }
 
-    // Create new user
-    user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        googleSub: sub,
-        picture,
-      },
+    let user = await prisma.user.findUnique({ where: { sub } });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: { email, name, picture, sub },
+      });
+    } else {
+      user = await prisma.user.update({
+        where: { sub },
+        data: { name, picture, email },
+      });
+    }
+
+    // ✅ Create JWT
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET!,
+      { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
+    );
+
+    // ✅ Send cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: false, // change to true in production (https)
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    res.status(200).json(user);
-  } catch (error: any) {
-    console.error("Google auth error:", error);
-    res.status(500).json({ error: error.message });
+    res.json({ user });
+  } catch (err: any) {
+    console.error("Google auth error:", err);
+    res.status(500).json({ error: err.message });
   }
+};
+export const logout = (_req: Request, res: Response) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: false,
+    sameSite: "lax",
+  });
+  res.json({ message: "Logged out successfully" });
 };

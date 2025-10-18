@@ -1,9 +1,18 @@
-import express from "express";
-import { ensureGoogleUser } from "../controllers/authController";
+import { Router } from "express";
+import { googleAuth, logout } from "../controllers/authController";
+import { verifyAuth } from "../middleware/authMiddleware";
 
-const router = express.Router();
+const router = Router();
 
-// Google OAuth signup/login route
-router.post("/google", ensureGoogleUser);
+// Google login
+router.post("/google", googleAuth);
+
+// ✅ Check if user is logged in (from cookie)
+router.get("/me", verifyAuth, (req, res) => {
+  res.json({ user: (req as any).user });
+});
+
+// ✅ Logout route
+router.post("/logout", logout);
 
 export default router;
