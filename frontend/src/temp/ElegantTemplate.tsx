@@ -18,15 +18,15 @@ interface TemplateProps {
 // Helper to measure text height dynamically
 const getTextHeight = (text: string, fontSize: number, width: number) => {
   const lines = text.split("\n");
-  const avgLineHeight = fontSize * 1.4;
+  const avgLineHeight = fontSize * 1.5; // Increased line height
   let totalLines = 0;
 
   lines.forEach((line) => {
-    const charsPerLine = Math.floor(width / (fontSize * 0.6));
-    totalLines += Math.ceil(line.length / charsPerLine);
+    const charsPerLine = Math.floor(width / (fontSize * 0.55)); // More accurate char width
+    totalLines += Math.max(1, Math.ceil(line.length / charsPerLine));
   });
 
-  return totalLines * avgLineHeight;
+  return totalLines * avgLineHeight + 10; // Added padding
 };
 
 export default function ElegantTemplate({
@@ -44,10 +44,10 @@ export default function ElegantTemplate({
   // Dynamically calculate heights for reflow
   const layout = useMemo(() => {
     const summaryHeight = getTextHeight(summary, 13, 680);
-    const expHeight = getTextHeight(experience, 13, 480);
-    const projHeight = getTextHeight(projects, 13, 480);
-    const skillsHeight = getTextHeight(skills, 13, 480);
-    const eduHeight = getTextHeight(education, 13, 480);
+    const expHeight = getTextHeight(experience, 13, 320);
+    const projHeight = getTextHeight(projects, 13, 320);
+    const skillsHeight = getTextHeight(skills, 13, 280);
+    const eduHeight = getTextHeight(education, 13, 280);
 
     return {
       summaryHeight,
@@ -60,11 +60,11 @@ export default function ElegantTemplate({
 
   // Starting Y positions that adjust dynamically
   const startY = {
-    summary: 245,
-    experience: 245 + layout.summaryHeight + 50,
-    projects: 245 + layout.summaryHeight + layout.expHeight + 100,
-    skills: 245 + layout.summaryHeight + layout.expHeight + layout.projHeight + 150,
-    education: 245 + layout.summaryHeight + layout.expHeight + layout.projHeight + layout.skillsHeight + 200,
+    summary: 260,
+    experience: 260 + layout.summaryHeight + 60,
+    projects: 260 + layout.summaryHeight + layout.expHeight + 120,
+    skills: 260 + layout.summaryHeight + layout.expHeight + 60,
+    education: 260 + layout.summaryHeight + layout.expHeight + layout.skillsHeight + 120,
   };
 
   return (
@@ -164,9 +164,9 @@ export default function ElegantTemplate({
       {/* Left Column Background */}
       <Rect 
         x={50} 
-        y={startY.experience - 40} 
+        y={startY.experience - 50} 
         width={360} 
-        height={layout.expHeight + layout.projHeight + layout.skillsHeight + 240} 
+        height={layout.expHeight + layout.projHeight + 120} 
         fill={theme.primary} 
         opacity={0.02} 
         cornerRadius={8}
@@ -176,18 +176,18 @@ export default function ElegantTemplate({
       <Text
         text="EXPERIENCE"
         x={70}
-        y={startY.experience - 20}
+        y={startY.experience - 30}
         fontSize={16}
         fontStyle="bold"
         fill={theme.primary}
         fontFamily={theme.fontFamily}
         letterSpacing={1.5}
       />
-      <Rect x={70} y={startY.experience + 5} width={50} height={2} fill={theme.primary} opacity={0.6} />
+      <Rect x={70} y={startY.experience - 5} width={50} height={2} fill={theme.primary} opacity={0.6} />
       <Text
         text={experience}
         x={70}
-        y={startY.experience + 20}
+        y={startY.experience + 10}
         width={320}
         fontSize={13}
         fill="#444"
@@ -200,18 +200,18 @@ export default function ElegantTemplate({
       <Text
         text="PROJECTS"
         x={70}
-        y={startY.projects - 20}
+        y={startY.projects - 30}
         fontSize={16}
         fontStyle="bold"
         fill={theme.primary}
         fontFamily={theme.fontFamily}
         letterSpacing={1.5}
       />
-      <Rect x={70} y={startY.projects + 5} width={50} height={2} fill={theme.primary} opacity={0.6} />
+      <Rect x={70} y={startY.projects - 5} width={50} height={2} fill={theme.primary} opacity={0.6} />
       <Text
         text={projects}
         x={70}
-        y={startY.projects + 20}
+        y={startY.projects + 10}
         width={320}
         fontSize={13}
         fill="#444"
@@ -223,9 +223,9 @@ export default function ElegantTemplate({
       {/* Right Column Background */}
       <Rect 
         x={430} 
-        y={startY.experience - 40} 
+        y={startY.skills - 50} 
         width={320} 
-        height={layout.skillsHeight + layout.eduHeight + 140} 
+        height={layout.skillsHeight + layout.eduHeight + 120} 
         fill={theme.primary} 
         opacity={0.02} 
         cornerRadius={8}
@@ -235,18 +235,18 @@ export default function ElegantTemplate({
       <Text
         text="SKILLS"
         x={450}
-        y={startY.experience - 20}
+        y={startY.skills - 30}
         fontSize={16}
         fontStyle="bold"
         fill={theme.primary}
         fontFamily={theme.fontFamily}
         letterSpacing={1.5}
       />
-      <Rect x={450} y={startY.experience + 5} width={50} height={2} fill={theme.primary} opacity={0.6} />
+      <Rect x={450} y={startY.skills - 5} width={50} height={2} fill={theme.primary} opacity={0.6} />
       <Text
         text={skills}
         x={450}
-        y={startY.experience + 20}
+        y={startY.skills + 10}
         width={280}
         fontSize={13}
         fill="#444"
@@ -259,7 +259,7 @@ export default function ElegantTemplate({
       <Text
         text="EDUCATION"
         x={450}
-        y={startY.experience + layout.skillsHeight + 40}
+        y={startY.education - 30}
         fontSize={16}
         fontStyle="bold"
         fill={theme.primary}
@@ -268,7 +268,7 @@ export default function ElegantTemplate({
       />
       <Rect 
         x={450} 
-        y={startY.experience + layout.skillsHeight + 65} 
+        y={startY.education - 5} 
         width={50} 
         height={2} 
         fill={theme.primary} 
@@ -277,7 +277,7 @@ export default function ElegantTemplate({
       <Text
         text={education}
         x={450}
-        y={startY.experience + layout.skillsHeight + 80}
+        y={startY.education + 10}
         width={280}
         fontSize={13}
         fill="#444"
@@ -289,7 +289,7 @@ export default function ElegantTemplate({
       {/* Elegant bottom accent */}
       <Rect 
         x={0} 
-        y={startY.education + layout.eduHeight + 50} 
+        y={Math.max(startY.projects + layout.projHeight, startY.education + layout.eduHeight) + 80} 
         width={800} 
         height={60} 
         fill={theme.primary} 
@@ -298,7 +298,7 @@ export default function ElegantTemplate({
       <Text
         text="Designed with Elegance • Professional Resume"
         x={0}
-        y={startY.education + layout.eduHeight + 72}
+        y={Math.max(startY.projects + layout.projHeight, startY.education + layout.eduHeight) + 102}
         width={800}
         align="center"
         fontSize={10}
