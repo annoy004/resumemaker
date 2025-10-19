@@ -1,18 +1,104 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { Stage } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import ModernTemplate from "../temp/ModernTemplate";
-import ElegantTemplate from "../temp/ElegantTemplate";
+import CanvasPreview from "./CanvasPreview";
 import ExperienceEntry from "./ExperienceEntry";
+import ProjectEntry from "./ProjectEntry";
+import EducationEntry from "./EducationEntry";
+
+interface ExperienceItem {
+  title: string;
+  company: string;
+  period: string;
+  location: string;
+  description: string;
+}
+
+interface ProjectItem {
+  title: string;
+  techStack: string;
+  description: string;
+  link: string;
+}
+
+interface EducationItem {
+  degree: string;
+  institution: string;
+  year: string;
+  cgpa: string;
+  details: string;
+}
+
+interface SkillItem {
+  name: string;
+  level: string;
+}
+
+interface Theme {
+  primary: string;
+  fontFamily: string;
+}
+
+interface ResumeData {
+  name: string;
+  designation: string;
+  summary: string;
+  experience: ExperienceItem[];
+  projects: string;
+  education: string;
+  projectsArray: ProjectItem[];
+  educationArray: EducationItem[];
+  skills: SkillItem[];
+  contact: string;
+  tempSkills?: string;
+}
 
 interface CanvasEditorProps {
-  onDataChange?: (data: { resume: any; theme: any }) => void;
+  onDataChange?: (data: { resume: ResumeData; theme: Theme }) => void;
 }
+
+const formatProjects = (arr: ProjectItem[]) =>
+  arr
+    .map(
+      (p) =>
+        `${p.title}${p.techStack ? ` — ${p.techStack}` : ""}${
+          p.link ? `\n${p.link}` : ""
+        }\n${p.description}`.trim()
+    )
+    .join("\n\n");
+
+const formatEducation = (arr: EducationItem[]) =>
+  arr
+    .map(
+      (e) =>
+        `${e.degree}\n${e.institution} (${e.year})${
+          e.cgpa ? ` — CGPA: ${e.cgpa}` : ""
+        }${e.details ? `\n${e.details}` : ""}`.trim()
+    )
+    .join("\n\n");
 
 export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
   const stageRef = useRef<any>(null);
 
-  const [resume, setResume] = useState({
+  const initialProjectsArray: ProjectItem[] = [
+    {
+      title: "Resume Builder App",
+      techStack: "React, Node.js",
+      description: "Built full MERN stack resume builder with live preview.",
+      link: "",
+    },
+  ];
+
+  const initialEducationArray: EducationItem[] = [
+    {
+      degree: "B.E. in Computer Engineering",
+      institution: "TCET",
+      year: "2022–2024",
+      cgpa: "8.5",
+      details: "",
+    },
+  ];
+
+  const [resume, setResume] = useState<ResumeData>({
     name: "Arnav Singh",
     designation: "Frontend Developer",
     summary:
@@ -31,24 +117,24 @@ export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
       { name: "React", level: "Advanced" },
       { name: "TypeScript", level: "Intermediate" },
     ],
-    projects:
-      "Resume Builder App — React, Node.js, MongoDB\nE-commerce MERN App — integrated Stripe & Redux\nChat App — real-time chat with Socket.IO",
-    education:
-      "B.E. in Computer Engineering\nThakur College of Engineering & Technology (2022–2024)\nCGPA: 8.5",
+    projectsArray: initialProjectsArray,
+    educationArray: initialEducationArray,
+    projects: formatProjects(initialProjectsArray),
+    education: formatEducation(initialEducationArray),
     contact:
       "📧 arnav.singh@example.com\n📱 +91 98765 43210\n🌐 www.arnavportfolio.com",
+    tempSkills: "",
   });
 
-  const [theme, setTheme] = useState({
+  const [theme, setTheme] = useState<Theme>({
     primary: "#2563eb",
     fontFamily: "Poppins, sans-serif",
   });
 
-  const [selectedTemplate, setSelectedTemplate] = useState<"modern" | "elegant">(
-    "modern"
-  );
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<"modern" | "elegant">("modern");
 
-  // ✅ Memoized callback
+  // Notify parent when data changes
   const handleDataChange = useCallback(() => {
     if (onDataChange) onDataChange({ resume, theme });
   }, [onDataChange, resume, theme]);
@@ -57,6 +143,7 @@ export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
     handleDataChange();
   }, [handleDataChange]);
 
+  // ✏️ On-canvas editing handler
   const handleEdit = (
     field: string,
     value: string,
@@ -66,29 +153,28 @@ export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
     const absPos = e.target.getAbsolutePosition();
     const container = stage.container();
 
-    const areaPosition = {
-      x: absPos.x + container.offsetLeft,
-      y: absPos.y + container.offsetTop,
-    };
-
     const textarea = document.createElement("textarea");
     document.body.appendChild(textarea);
     textarea.value = value;
-    textarea.style.position = "absolute";
-    textarea.style.top = `${areaPosition.y - 6}px`;
-    textarea.style.left = `${areaPosition.x - 6}px`;
-    textarea.style.fontSize = "16px";
-    textarea.style.zIndex = "1000";
-    textarea.style.width = "420px";
-    textarea.style.minHeight = "32px";
-    textarea.style.padding = "10px 14px";
-    textarea.style.border = "1.8px solid #2563eb";
-    textarea.style.borderRadius = "8px";
-    textarea.style.boxShadow = "0 4px 12px rgba(37, 99, 235, 0.15)";
-    textarea.style.background = "#f9fafb";
-    textarea.style.fontFamily = theme.fontFamily;
-    textarea.style.color = "#1f2937";
-    textarea.style.resize = "none";
+
+    Object.assign(textarea.style, {
+      position: "absolute",
+      top: `${container.offsetTop + absPos.y}px`,
+      left: `${container.offsetLeft + absPos.x}px`,
+      width: "420px",
+      fontSize: "16px",
+      zIndex: "1000",
+      padding: "8px 10px",
+      border: `2px solid ${theme.primary}`,
+      borderRadius: "8px",
+      boxShadow: "0 4px 12px rgba(37,99,235,0.15)",
+      background: "#fff",
+      fontFamily: theme.fontFamily,
+      color: "#1f2937",
+      resize: "none",
+      lineHeight: "1.5",
+    });
+
     textarea.focus();
 
     const autoResize = () => {
@@ -98,70 +184,38 @@ export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
     autoResize();
     textarea.addEventListener("input", autoResize);
 
-    let saved = false;
-
     const save = () => {
-      if (saved) return;
-      saved = true;
-
-      setResume((prev) => {
-        const prevValue = prev[field as keyof typeof prev];
-        if (Array.isArray(prevValue) || typeof prevValue === "object") {
-          console.warn(`Skipping edit: '${field}' is not a string`);
-          return prev;
-        }
-        return { ...prev, [field]: textarea.value };
-      });
-
-      requestAnimationFrame(() => {
-        if (document.body.contains(textarea)) {
-          document.body.removeChild(textarea);
-        }
-      });
+      setResume((prev) => ({ ...prev, [field]: textarea.value }));
+      document.body.removeChild(textarea);
     };
 
-    textarea.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape") {
-        ev.preventDefault();
-        if (document.body.contains(textarea)) {
-          document.body.removeChild(textarea);
-        }
-      }
-    });
-
     textarea.addEventListener("blur", save);
+    textarea.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") document.body.removeChild(textarea);
+    });
   };
 
   return (
-    <div className="flex flex-col items-center gap-8 mt-8">
-      {/* 🎨 Template + Theme Controls */}
+    <div className="flex flex-col items-center gap-8 mt-8 w-full">
+      {/* 🎨 Template Controls */}
       <div className="flex flex-col md:flex-row gap-6 items-center bg-gray-50 p-4 rounded-lg shadow-sm border w-full justify-center">
-        {/* Template Switcher */}
         <div className="flex gap-3 items-center">
           <span className="text-gray-700 font-medium mr-2">Template:</span>
-          <button
-            onClick={() => setSelectedTemplate("modern")}
-            className={`px-3 py-1 rounded-md border text-sm font-medium transition ${
-              selectedTemplate === "modern"
-                ? "bg-blue-100 border-blue-400 text-blue-600"
-                : "bg-white border-gray-300 hover:bg-gray-100"
-            }`}
-          >
-            Modern
-          </button>
-          <button
-            onClick={() => setSelectedTemplate("elegant")}
-            className={`px-3 py-1 rounded-md border text-sm font-medium transition ${
-              selectedTemplate === "elegant"
-                ? "bg-blue-100 border-blue-400 text-blue-600"
-                : "bg-white border-gray-300 hover:bg-gray-100"
-            }`}
-          >
-            Elegant
-          </button>
+          {["modern", "elegant"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setSelectedTemplate(t as "modern" | "elegant")}
+              className={`px-3 py-1 rounded-md border text-sm font-medium transition ${
+                selectedTemplate === t
+                  ? "bg-blue-100 border-blue-400 text-blue-600"
+                  : "bg-white border-gray-300 hover:bg-gray-100"
+              }`}
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
         </div>
 
-        {/* 🎨 Color Picker */}
         <div className="flex gap-2 items-center">
           <label className="text-gray-700 font-medium">Primary Color:</label>
           <input
@@ -172,14 +226,11 @@ export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
           />
         </div>
 
-        {/* 🖋️ Font Selector */}
         <div className="flex gap-2 items-center">
           <label className="text-gray-700 font-medium">Font:</label>
           <select
             value={theme.fontFamily}
-            onChange={(e) =>
-              setTheme({ ...theme, fontFamily: e.target.value })
-            }
+            onChange={(e) => setTheme({ ...theme, fontFamily: e.target.value })}
             className="px-3 py-2 border rounded-md bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           >
             <option value="Poppins, sans-serif">Poppins</option>
@@ -191,86 +242,209 @@ export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
         </div>
       </div>
 
-      {/* 🧾 Canvas Display */}
-      <div className="bg-white border shadow-md p-4 rounded-md">
-        {/* @ts-ignore */}
-        <Stage width={800} height={1120} ref={stageRef}>
-          {selectedTemplate === "modern" ? (
-            <ModernTemplate
-              {...{
-                ...resume,
-                experience: resume.experience
-                  .map(
-                    (exp) =>
-                      `${exp.title} - ${exp.company} (${exp.period})\n${exp.location}\n${exp.description}`
-                  )
-                  .join("\n\n"),
-                skills: resume.skills
-                  .map((s) => `${s.name} (${s.level})`)
-                  .join(", "),
-              }}
-              theme={theme}
-              onEdit={handleEdit}
-            />
-          ) : (
-            <ElegantTemplate
-              {...{
-                ...resume,
-                experience: resume.experience
-                  .map(
-                    (exp) =>
-                      `${exp.title} - ${exp.company} (${exp.period})\n${exp.location}\n${exp.description}`
-                  )
-                  .join("\n\n"),
-                skills: resume.skills
-                  .map((s) => `${s.name} (${s.level})`)
-                  .join(", "),
-              }}
-              theme={theme}
-              onEdit={handleEdit}
-            />
-          )}
-        </Stage>
-      </div>
+      {/* 🧾 Canvas Preview */}
+      <CanvasPreview
+        stageRef={stageRef}
+        resume={resume}
+        theme={theme}
+        selectedTemplate={selectedTemplate}
+        onEdit={handleEdit}
+      />
 
-      {/* 🧠 Editable Experience Section */}
-      <div className="w-full max-w-2xl">
-        <h2 className="text-xl font-semibold mb-2 text-gray-800">Experience</h2>
-        {resume.experience.map((exp, idx) => (
-          <ExperienceEntry
-            key={idx}
-            entry={exp}
-            onChange={(field: string, value: string) => {
-              const updated = [...resume.experience];
-              updated[idx] = { ...updated[idx], [field]: value };
-              setResume({ ...resume, experience: updated });
+      {/* 🧠 Editable Form */}
+      <div className="w-full max-w-2xl space-y-6">
+        {/* Basic Info */}
+        <div>
+          <h2 className="text-xl font-semibold mb-2 text-gray-800">
+            Basic Information
+          </h2>
+          {["name", "designation", "summary", "contact"].map((field) => (
+            <div key={field} className="mb-3">
+              <label className="block text-gray-700 capitalize mb-1">
+                {field}
+              </label>
+              <textarea
+                value={(resume as any)[field]}
+                onChange={(e) =>
+                  setResume({ ...resume, [field]: e.target.value })
+                }
+                className="w-full border rounded-md p-2 bg-gray-50"
+                rows={field === "summary" || field === "contact" ? 3 : 1}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Experience */}
+        <div>
+          <h2 className="text-xl font-semibold mb-2 text-gray-800">
+            Experience
+          </h2>
+          {resume.experience.map((exp, idx) => (
+            <ExperienceEntry
+              key={idx}
+              entry={exp}
+              onChange={(field: string, value: string) => {
+                const updated = [...resume.experience];
+                updated[idx] = { ...updated[idx], [field]: value };
+                setResume({ ...resume, experience: updated });
+              }}
+              onDelete={() => {
+                const updated = resume.experience.filter((_, i) => i !== idx);
+                setResume({ ...resume, experience: updated });
+              }}
+            />
+          ))}
+          <button
+            onClick={() =>
+              setResume({
+                ...resume,
+                experience: [
+                  ...resume.experience,
+                  {
+                    title: "",
+                    company: "",
+                    period: "",
+                    location: "",
+                    description: "",
+                  },
+                ],
+              })
+            }
+            className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition text-sm"
+          >
+            + Add Experience
+          </button>
+        </div>
+
+        {/* Projects */}
+        <div>
+          <h2 className="text-xl font-semibold mb-2 text-gray-800">Projects</h2>
+          {resume.projectsArray.map((proj, idx) => (
+            <ProjectEntry
+              key={idx}
+              entry={proj}
+              onChange={(field, value) => {
+                const updated = [...resume.projectsArray];
+                updated[idx] = { ...updated[idx], [field]: value };
+                setResume({
+                  ...resume,
+                  projectsArray: updated,
+                  projects: formatProjects(updated),
+                });
+              }}
+              onDelete={() => {
+                const updated = resume.projectsArray.filter((_, i) => i !== idx);
+                setResume({
+                  ...resume,
+                  projectsArray: updated,
+                  projects: formatProjects(updated),
+                });
+              }}
+            />
+          ))}
+          <button
+            onClick={() => {
+              const updated = [
+                ...resume.projectsArray,
+                { title: "", techStack: "", description: "", link: "" },
+              ];
+              setResume({
+                ...resume,
+                projectsArray: updated,
+                projects: formatProjects(updated),
+              });
             }}
-            onDelete={() => {
-              const updated = resume.experience.filter((_, i) => i !== idx);
-              setResume({ ...resume, experience: updated });
+            className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition text-sm"
+          >
+            + Add Project
+          </button>
+        </div>
+
+        {/* Skills */}
+        <div>
+          <h2 className="text-xl font-semibold mb-2 text-gray-800">Skills</h2>
+          <textarea
+            value={
+              resume.tempSkills !== undefined
+                ? resume.tempSkills
+                : resume.skills.map((s) => `${s.name} (${s.level})`).join(", ")
+            }
+            onChange={(e) =>
+              setResume((prev) => ({
+                ...prev,
+                tempSkills: e.target.value,
+              }))
+            }
+            onBlur={(e) => {
+              const text = e.target.value.trim();
+              if (!text) {
+                setResume((prev) => ({ ...prev, skills: [], tempSkills: "" }));
+                return;
+              }
+              const parsed = text.split(",").map((s) => {
+                const match = s.match(/(.*)\((.*)\)/);
+                return match
+                  ? { name: match[1].trim(), level: match[2].trim() }
+                  : { name: s.trim(), level: "Intermediate" };
+              });
+              setResume((prev) => ({ ...prev, skills: parsed, tempSkills: "" }));
             }}
+            className="w-full border rounded-md p-2 bg-gray-50"
+            rows={2}
+            placeholder="e.g. React (Advanced), TypeScript (Intermediate)"
           />
-        ))}
-        <button
-          onClick={() =>
-            setResume({
-              ...resume,
-              experience: [
-                ...resume.experience,
+        </div>
+
+        {/* Education */}
+        <div>
+          <h2 className="text-xl font-semibold mb-2 text-gray-800">Education</h2>
+          {resume.educationArray.map((edu, idx) => (
+            <EducationEntry
+              key={idx}
+              entry={edu}
+              onChange={(field, value) => {
+                const updated = [...resume.educationArray];
+                updated[idx] = { ...updated[idx], [field]: value };
+                setResume({
+                  ...resume,
+                  educationArray: updated,
+                  education: formatEducation(updated),
+                });
+              }}
+              onDelete={() => {
+                const updated = resume.educationArray.filter((_, i) => i !== idx);
+                setResume({
+                  ...resume,
+                  educationArray: updated,
+                  education: formatEducation(updated),
+                });
+              }}
+            />
+          ))}
+          <button
+            onClick={() => {
+              const updated = [
+                ...resume.educationArray,
                 {
-                  title: "",
-                  company: "",
-                  period: "",
-                  location: "",
-                  description: "",
+                  degree: "",
+                  institution: "",
+                  year: "",
+                  cgpa: "",
+                  details: "",
                 },
-              ],
-            })
-          }
-          className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition text-sm"
-        >
-          + Entry
-        </button>
+              ];
+              setResume({
+                ...resume,
+                educationArray: updated,
+                education: formatEducation(updated),
+              });
+            }}
+            className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition text-sm"
+          >
+            + Add Education
+          </button>
+        </div>
       </div>
     </div>
   );
