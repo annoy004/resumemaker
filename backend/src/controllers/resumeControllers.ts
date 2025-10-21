@@ -86,7 +86,7 @@ export const publishResume = async (req: Request, res: Response) => {
 };
 
 // ✅ Corrected version
-export const getPublicResume = async (req, res) => {
+export const getPublicResume = async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
 

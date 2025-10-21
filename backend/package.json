@@ -26,7 +26,8 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^24.8.1",
-    "@types/jsonwebtoken": "^9.0.6"
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/cookie-parser": "^1.4.3"
   },
   "devDependencies": {
     "ts-node": "^10.9.2",
