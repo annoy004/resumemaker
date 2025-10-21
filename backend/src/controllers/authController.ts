@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
-import jwt from "jsonwebtoken";
+import jwt, { Secret } from "jsonwebtoken";
 import { prisma } from "../prisma";
+
+const JWT_SECRET: Secret = process.env.JWT_SECRET || "default_secret";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
 export const googleAuth = async (req: Request, res: Response) => {
   try {
@@ -22,17 +25,17 @@ export const googleAuth = async (req: Request, res: Response) => {
       });
     }
 
-    // ✅ Create JWT
+    // ✅ Create JWT safely (typed Secret)
     const token = jwt.sign(
       { id: user.id, email: user.email },
-      process.env.JWT_SECRET as string,
-      { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
     );
 
     // ✅ Send cookie
     res.cookie("token", token, {
       httpOnly: true,
-      secure: false, // change to true in production (https)
+      secure: process.env.NODE_ENV === "production", // only true in production
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
@@ -43,10 +46,11 @@ export const googleAuth = async (req: Request, res: Response) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 export const logout = (_req: Request, res: Response) => {
   res.clearCookie("token", {
     httpOnly: true,
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
   });
   res.json({ message: "Logged out successfully" });
