@@ -1,37 +1,34 @@
 import React, { useMemo } from "react";
-import { Layer, Rect, Text, Line } from "react-konva";
+import { Layer, Rect, Text } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-
-interface ExperienceItem {
-  title: string;
-  company: string;
-  period: string;
-  location: string;
-  description: string;
-}
 
 interface TemplateProps {
   name: string;
   designation: string;
   summary: string;
-  experience: string; // ✅ changed from ExperienceItem[]
+  experience: string;
   projects: string;
-  skills: string; // ✅ changed from SkillItem[] or similar
+  skills: string;
   education: string;
   contact: string;
-  theme: { primary: string; fontFamily: string };
+  theme: { primary: string; fontFamily: string; fontSize?: number; lineHeight?: number; pageMargin?: number; sectionSpacing?: number };
   onEdit: (field: string, value: string, e: KonvaEventObject<MouseEvent>) => void;
+  scale?: number;
+  isMobile?: boolean;
+  compactMode?: boolean;
+  canvasWidth?: number;
+  sectionOrder?: string[];
 }
 
-// Helper: approximate text height
-const getTextHeight = (text: string, fontSize: number, width: number) => {
+const getTextHeight = (text: string, fontSize: number, width: number, lineHeight: number) => {
+  if (!text || text.trim().length === 0) return 0;
   const lines = text.split("\n");
-  const avgLineHeight = fontSize * 1.4;
+  const avgLineHeight = fontSize * lineHeight;
   let totalLines = 0;
 
   lines.forEach((line) => {
-    const charsPerLine = Math.floor(width / (fontSize * 0.6));
-    totalLines += Math.ceil(line.length / charsPerLine);
+    const charsPerLine = Math.floor(width / (fontSize * 0.55));
+    totalLines += Math.max(1, Math.ceil(line.length / charsPerLine));
   });
 
   return totalLines * avgLineHeight;
@@ -48,323 +45,222 @@ export default function ModernTemplate({
   contact,
   theme,
   onEdit,
+  scale = 1,
+  isMobile = false,
+  compactMode = false,
+  canvasWidth = 600,
+  sectionOrder = ["summary", "experience", "projects", "skills", "education", "contact"],
 }: TemplateProps) {
-  // Calculate layout dynamically
+  const responsive = useMemo(() => {
+    const scaleFactor = canvasWidth / 800;
+    const fontSizeSetting = theme.fontSize ?? 3; // 1..5
+    const fontScaleMap = { 1: 0.85, 2: 0.95, 3: 1, 4: 1.1, 5: 1.2 } as const;
+    const fontScale = fontScaleMap[(Math.min(5, Math.max(1, fontSizeSetting)) as 1|2|3|4|5)] || 1;
+
+    const basePadding = 45 * scaleFactor;
+    const marginSetting = theme.pageMargin ?? 4; // 1..8
+    const marginScale = 0.6 + ((Math.min(8, Math.max(1, marginSetting)) - 1) / 7) * 1.2; // ~0.6..1.8
+    const padding = basePadding * marginScale;
+
+    const baseSectionSpacing = 45 * scaleFactor;
+    const spacingSetting = theme.sectionSpacing ?? 2; // 1..8
+    const spacingScale = 0.7 + ((Math.min(8, Math.max(1, spacingSetting)) - 1) / 7) * 1.2; // ~0.7..1.9
+
+    return {
+      padding,
+      headerHeight: 160 * scaleFactor,
+      fontSize: {
+        title: Math.max(26, 40 * scaleFactor) * fontScale,
+        subtitle: Math.max(16, 20 * scaleFactor) * fontScale,
+        section: Math.max(13, 15 * scaleFactor) * fontScale,
+        body: Math.max(11, 13 * scaleFactor) * fontScale,
+        small: Math.max(10, 12 * scaleFactor) * fontScale,
+      },
+      lineHeight: {
+        title: 1.1,
+        subtitle: 1.3,
+        body: theme.lineHeight ?? 1.6,
+      },
+      gaps: {
+        sectionTitle: 18 * scaleFactor,
+        sectionSpacing: baseSectionSpacing * spacingScale,
+        blockSpacing: 22 * scaleFactor * spacingScale,
+      },
+    };
+  }, [canvasWidth, compactMode, theme.fontSize, theme.pageMargin, theme.sectionSpacing, theme.lineHeight]);
+
+  const sectionContent = useMemo(() => {
+    return {
+      summary: { title: "PROFILE SUMMARY", content: summary, type: "left" },
+      experience: { title: "EXPERIENCE", content: experience, type: "left" },
+      projects: { title: "PROJECTS", content: projects, type: "left" },
+      skills: { title: "SKILLS", content: skills, type: "left" },
+      education: { title: "EDUCATION", content: education, type: "right" },
+      contact: { title: "CONTACT", content: contact, type: "right" },
+    };
+  }, [summary, experience, projects, skills, education, contact]);
+
   const layout = useMemo(() => {
-    const summaryHeight = getTextHeight(summary, 14, 500);
+    const fullWidth = canvasWidth - responsive.padding * 2;
+    const leftColWidth = fullWidth * 0.65;
+    const rightColWidth = fullWidth * 0.3;
 
-    const expHeights = Array.isArray(experience)
-      ? experience.map((exp) => {
-          const block = `${exp.title} - ${exp.company} (${exp.period})
-${exp.location}
-${exp.description}`;
-          return getTextHeight(block, 14, 500);
-        })
-      : [getTextHeight(String(experience || ""), 14, 500)];
+    const experienceBlocks = String(experience)
+      .split("\n\n")
+      .map((b) => b.trim())
+      .filter((b) => b.length > 0);
 
-    const EXP_GAP = 25;
-    const expHeight = expHeights.reduce(
-      (sum, h, i) => sum + h + (i ? EXP_GAP : 0),
-      0
+    return {
+      leftColWidth,
+      rightColWidth,
+      gapBetweenCols: fullWidth * 0.05,
+      experienceBlocks,
+    };
+  }, [experience, responsive, canvasWidth]);
+
+  const positions = useMemo(() => {
+    const leftX = responsive.padding;
+    const rightX = responsive.padding + layout.leftColWidth + layout.gapBetweenCols;
+    const positions: { [key: string]: { title: number; content: number } } = {};
+
+    let leftY = responsive.headerHeight + responsive.gaps.sectionSpacing;
+    let rightY = responsive.headerHeight + responsive.gaps.sectionSpacing;
+
+    for (const section of sectionOrder) {
+      const content = sectionContent[section as keyof typeof sectionContent];
+      if (!content) continue;
+
+      const text = content.content;
+      let height = 0;
+
+      if (section === "experience") {
+        height = layout.experienceBlocks.reduce((sum, block) => {
+          return sum + getTextHeight(block, responsive.fontSize.body, layout.leftColWidth, responsive.lineHeight.body) + responsive.gaps.blockSpacing;
+        }, 0);
+      } else {
+        const colWidth = content.type === "left" ? layout.leftColWidth : layout.rightColWidth;
+        height = getTextHeight(text, responsive.fontSize.body, colWidth, responsive.lineHeight.body);
+      }
+
+      if (content.type === "left") {
+        positions[section] = { title: leftY, content: leftY + responsive.gaps.sectionTitle };
+        leftY += responsive.gaps.sectionTitle + height + responsive.gaps.sectionSpacing;
+      } else {
+        positions[section] = { title: rightY, content: rightY + responsive.gaps.sectionTitle };
+        rightY += responsive.gaps.sectionTitle + height + responsive.gaps.sectionSpacing;
+      }
+    }
+
+    return {
+      leftX,
+      rightX,
+      sections: positions,
+    };
+  }, [responsive, layout, sectionOrder, sectionContent]);
+
+  const renderSection = (sectionKey: string) => {
+    const content = sectionContent[sectionKey as keyof typeof sectionContent];
+    if (!content || !positions.sections[sectionKey]) return null;
+
+    const x = content.type === "left" ? positions.leftX : positions.rightX;
+    const width = content.type === "left" ? layout.leftColWidth : layout.rightColWidth;
+    const pos = positions.sections[sectionKey];
+    const fieldName = sectionKey === "experience" ? "experience" : sectionKey;
+
+    return (
+      <React.Fragment key={sectionKey}>
+        {/* Section Title */}
+        <Text
+          text={content.title}
+          x={x}
+          y={pos.title}
+          fontSize={responsive.fontSize.section}
+          fontStyle="bold"
+          fill={theme.primary}
+          fontFamily={theme.fontFamily}
+          letterSpacing={1}
+        />
+
+        {/* Section Content */}
+        {sectionKey === "experience" ? (
+          (() => {
+            let y = pos.content;
+            return layout.experienceBlocks.map((block, i) => {
+              const blockHeight = getTextHeight(block, responsive.fontSize.body, width, responsive.lineHeight.body);
+              const node = (
+                <Text
+                  key={`${sectionKey}-${i}`}
+                  text={block}
+                  x={x}
+                  y={y}
+                  width={width}
+                  fontSize={responsive.fontSize.body}
+                  fill="#444"
+                  lineHeight={responsive.lineHeight.body}
+                  fontFamily={theme.fontFamily}
+                  onClick={(e: KonvaEventObject<MouseEvent>) => onEdit(fieldName, content.content, e)}
+                />
+              );
+              y += blockHeight + responsive.gaps.blockSpacing;
+              return node;
+            });
+          })()
+        ) : (
+          <Text
+            text={content.content}
+            x={x}
+            y={pos.content}
+            width={width}
+            fontSize={responsive.fontSize.body}
+            fill="#444"
+            lineHeight={responsive.lineHeight.body}
+            fontFamily={theme.fontFamily}
+            onClick={(e: KonvaEventObject<MouseEvent>) => onEdit(fieldName, content.content, e)}
+          />
+        )}
+      </React.Fragment>
     );
-
-    const projHeight = getTextHeight(projects, 14, 500);
-    const skillsHeight = getTextHeight(skills, 14, 500);
-    const eduHeight = getTextHeight(education, 14, 500);
-
-    return { summaryHeight, expHeight, projHeight, skillsHeight, eduHeight };
-  }, [summary, experience, projects, skills, education]);
-
-  // Starting Y positions that adapt dynamically
-  const startY = {
-    summary: 190,
-    experience: 190 + layout.summaryHeight + 40,
-    projects: 190 + layout.summaryHeight + layout.expHeight + 100,
-    skills:
-      190 +
-      layout.summaryHeight +
-      layout.expHeight +
-      layout.projHeight +
-      160,
-    education:
-      190 +
-      layout.summaryHeight +
-      layout.expHeight +
-      layout.projHeight +
-      layout.skillsHeight +
-      240,
   };
 
   return (
     <Layer>
-      {/* === HEADER === */}
+      {/* HEADER BACKGROUND */}
       <Rect
         x={0}
         y={0}
-        width={800}
-        height={120}
+        width={canvasWidth}
+        height={responsive.headerHeight}
         fill={theme.primary}
-        opacity={0.1}
+        opacity={0.07}
       />
+
+      {/* NAME */}
       <Text
-        text={name}
-        x={50}
-        y={35}
-        fontSize={38}
+        text={name.toUpperCase()}
+        x={responsive.padding}
+        y={responsive.padding + 20}
+        fontSize={responsive.fontSize.title}
         fontFamily={theme.fontFamily}
         fill={theme.primary}
         fontStyle="bold"
+        lineHeight={responsive.lineHeight.title}
         onClick={(e: KonvaEventObject<MouseEvent>) => onEdit("name", name, e)}
       />
+
+      {/* DESIGNATION */}
       <Text
         text={designation}
-        x={50}
-        y={85}
-        fontSize={20}
+        x={responsive.padding}
+        y={responsive.padding + responsive.fontSize.title + 40}
+        fontSize={responsive.fontSize.subtitle}
         fontFamily={theme.fontFamily}
-        fill="#333"
-        onClick={(e: KonvaEventObject<MouseEvent>) =>
-          onEdit("designation", designation, e)
-        }
+        fill="#666"
+        lineHeight={responsive.lineHeight.subtitle}
+        onClick={(e: KonvaEventObject<MouseEvent>) => onEdit("designation", designation, e)}
       />
 
-      <Line
-        points={[0, 130, 800, 130]}
-        stroke={theme.primary}
-        strokeWidth={1.5}
-        opacity={0.4}
-      />
-
-      {/* === PROFILE SUMMARY === */}
-      <Text
-        text="PROFILE SUMMARY"
-        x={50}
-        y={150}
-        fontSize={18}
-        fontStyle="bold"
-        fill={theme.primary}
-        fontFamily={theme.fontFamily}
-      />
-      <Rect
-        x={50}
-        y={175}
-        width={60}
-        height={2}
-        fill={theme.primary}
-        opacity={0.7}
-      />
-      <Text
-        text={summary}
-        x={50}
-        y={190}
-        width={500}
-        fontSize={14}
-        fill="#444"
-        lineHeight={1.6}
-        fontFamily={theme.fontFamily}
-        onClick={(e: KonvaEventObject<MouseEvent>) =>
-          onEdit("summary", summary, e)
-        }
-      />
-
-      {/* === EXPERIENCE === */}
-      <Text
-        text="EXPERIENCE"
-        x={50}
-        y={startY.experience - 20}
-        fontSize={18}
-        fontStyle="bold"
-        fill={theme.primary}
-        fontFamily={theme.fontFamily}
-      />
-      <Rect
-        x={50}
-        y={startY.experience + 5}
-        width={60}
-        height={2}
-        fill={theme.primary}
-        opacity={0.7}
-      />
-
-      {Array.isArray(experience) ? (
-        (() => {
-          const EXP_GAP = 25;
-          let y = startY.experience + 20;
-          return experience.map((exp, i) => {
-            const blockText = `${exp.title} - ${exp.company} (${exp.period})
-${exp.location}
-${exp.description}`;
-            const h = getTextHeight(blockText, 14, 500);
-            const node = (
-              <Text
-                key={i}
-                text={blockText}
-                x={50}
-                y={y}
-                width={500}
-                fontSize={14}
-                fill="#444"
-                lineHeight={1.6}
-                fontFamily={theme.fontFamily}
-                onClick={(e: KonvaEventObject<MouseEvent>) =>
-                  onEdit(
-                    "experience",
-                    experience
-                      .map(
-                        (ex) =>
-                          `${ex.title} - ${ex.company} (${ex.period})\n${ex.location}\n${ex.description}`
-                      )
-                      .join("\n\n"),
-                    e
-                  )
-                }
-              />
-            );
-            y += h + EXP_GAP;
-            return node;
-          });
-        })()
-      ) : (
-        <Text
-          text={String(experience || "")}
-          x={50}
-          y={startY.experience + 20}
-          width={500}
-          fontSize={14}
-          fill="#444"
-          lineHeight={1.6}
-          fontFamily={theme.fontFamily}
-          onClick={(e: KonvaEventObject<MouseEvent>) =>
-            onEdit("experience", String(experience || ""), e)
-          }
-        />
-      )}
-
-      {/* === PROJECTS === */}
-      <Text
-        text="PROJECTS"
-        x={50}
-        y={startY.projects - 20}
-        fontSize={18}
-        fontStyle="bold"
-        fill={theme.primary}
-        fontFamily={theme.fontFamily}
-      />
-      <Rect
-        x={50}
-        y={startY.projects + 5}
-        width={60}
-        height={2}
-        fill={theme.primary}
-        opacity={0.7}
-      />
-      <Text
-        text={projects}
-        x={50}
-        y={startY.projects + 20}
-        width={500}
-        fontSize={14}
-        fill="#444"
-        lineHeight={1.6}
-        fontFamily={theme.fontFamily}
-        onClick={(e: KonvaEventObject<MouseEvent>) =>
-          onEdit("projects", projects, e)
-        }
-      />
-
-      {/* === SKILLS === */}
-      <Text
-        text="SKILLS"
-        x={50}
-        y={startY.skills - 20}
-        fontSize={18}
-        fontStyle="bold"
-        fill={theme.primary}
-        fontFamily={theme.fontFamily}
-      />
-      <Rect
-        x={50}
-        y={startY.skills + 5}
-        width={60}
-        height={2}
-        fill={theme.primary}
-        opacity={0.7}
-      />
-      <Text
-        text={skills}
-        x={50}
-        y={startY.skills + 20}
-        width={500}
-        fontSize={14}
-        fill="#444"
-        fontFamily={theme.fontFamily}
-        onClick={(e: KonvaEventObject<MouseEvent>) =>
-          onEdit("skills", skills, e)
-        }
-      />
-
-      {/* === EDUCATION === */}
-      <Text
-        text="EDUCATION"
-        x={50}
-        y={startY.education - 20}
-        fontSize={18}
-        fontStyle="bold"
-        fill={theme.primary}
-        fontFamily={theme.fontFamily}
-      />
-      <Rect
-        x={50}
-        y={startY.education + 5}
-        width={60}
-        height={2}
-        fill={theme.primary}
-        opacity={0.7}
-      />
-      <Text
-        text={education}
-        x={50}
-        y={startY.education + 20}
-        width={500}
-        fontSize={14}
-        fill="#444"
-        fontFamily={theme.fontFamily}
-        onClick={(e: KonvaEventObject<MouseEvent>) =>
-          onEdit("education", education, e)
-        }
-      />
-
-      {/* === CONTACT === */}
-      <Text
-        text="CONTACT"
-        x={600}
-        y={150}
-        fontSize={18}
-        fontStyle="bold"
-        fill={theme.primary}
-        fontFamily={theme.fontFamily}
-      />
-      <Rect
-        x={600}
-        y={175}
-        width={60}
-        height={2}
-        fill={theme.primary}
-        opacity={0.7}
-      />
-      <Text
-        text={contact}
-        x={600}
-        y={190}
-        width={180}
-        fontSize={13}
-        fill="#444"
-        lineHeight={1.6}
-        fontFamily={theme.fontFamily}
-        onClick={(e: KonvaEventObject<MouseEvent>) =>
-          onEdit("contact", contact, e)
-        }
-      />
+      {/* RENDER SECTIONS IN ORDER */}
+      {sectionOrder.map((section) => renderSection(section))}
     </Layer>
   );
 }

@@ -1,10 +1,10 @@
 import ModernTemplate from "./ModernTemplate";
-import CreativeTemplate from "./CreativeTemplate";
+import ProfessionalTemplate from "./ProfessionalTemplate";
 import ElegantTemplate from "./ElegantTemplate";
 
 export const templates = {
   modern: ModernTemplate,
-  creative: CreativeTemplate,
+  professional: ProfessionalTemplate,
   elegant: ElegantTemplate,
 };
 

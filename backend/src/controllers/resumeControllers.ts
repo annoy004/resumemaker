@@ -67,9 +67,24 @@ export const publishResume = async (req: Request, res: Response) => {
   res.json({ publicUrl: `/r/${updated.publicSlug}`, resume: updated });
 };
 
-export const getPublicResume = async (req: Request, res: Response) => {
-  const { slug } = req.params;
-  const resume = await prisma.resume.findUnique({ where: { publicSlug: slug } });
-  if (!resume) return res.status(404).json({ error: 'Not found' });
-  res.json(resume);
+// ✅ Corrected version
+export const getPublicResume = async (req, res) => {
+  try {
+    const { slug } = req.params;
+
+    // ✅ Your database stores only the short UUID like "f9ac4777"
+    const resume = await prisma.resume.findUnique({
+      where: { publicSlug: slug },
+    });
+
+    if (!resume) {
+      return res.status(404).json({ error: "Resume not found or is private." });
+    }
+
+    res.json({ resume });
+  } catch (error) {
+    console.error("Error fetching public resume:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 };
+

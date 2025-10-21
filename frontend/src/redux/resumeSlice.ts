@@ -35,6 +35,25 @@ export const fetchResumes = createAsyncThunk<Resume[], string>(
   }
 );
 
+// 🎯 Publish resume (generate shareable link)
+export const publishResume = createAsyncThunk<
+  { publicUrl: string; resume: Resume },
+  string
+>("resumes/publishResume", async (resumeId) => {
+  const res = await api.post(`/resumes/${resumeId}/publish`);
+  return res.data;
+});
+
+// 🎯 Get a single public resume (for /r/:slug)
+export const getPublicResume = createAsyncThunk<Resume, string>(
+  "resumes/getPublicResume",
+  async (slug) => {
+    const res = await api.get(`/resumes/public/${slug}`);
+    return res.data;
+  }
+);
+
+
 export const createResume = createAsyncThunk<Resume, { userId: string; title?: string }>(
   "resumes/createResume",
   async (payload) => {
@@ -62,7 +81,17 @@ const resumeSlice = createSlice({
       })
       .addCase(createResume.fulfilled, (state, action: PayloadAction<Resume>) => {
         state.list.unshift(action.payload);
-      });
+      })
+      .addCase(publishResume.fulfilled, (state, action) => {
+  const { resume } = action.payload;
+  const index = state.list.findIndex((r) => r.id === resume.id);
+  if (index >= 0) state.list[index] = resume;
+})
+.addCase(getPublicResume.fulfilled, (state, action) => {
+  // optional: store last opened public resume
+  state.list = [action.payload];
+});
+
   },
 });
 

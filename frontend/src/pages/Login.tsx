@@ -30,12 +30,17 @@ export default function Login() {
 
   const onError = () => console.log("Google Login Failed");
 
-  if (loading) return <div className="h-screen flex items-center justify-center">Loading...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center text-sm sm:text-base">Loading...</div>;
 
   return (
-    <div className="h-screen flex flex-col items-center justify-center">
-      <h1 className="text-3xl font-bold mb-4">Login to ResumeMaker</h1>
-      <GoogleLogin onSuccess={onSuccess} onError={onError} />
+    <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-gray-50">
+      <div className="w-full max-w-md bg-white rounded-lg shadow p-5 sm:p-8">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 text-center">Login to ResumeMaker</h1>
+        <p className="text-gray-600 text-xs sm:text-sm text-center mb-4 sm:mb-6">Sign in with Google to continue</p>
+        <div className="flex items-center justify-center">
+          <GoogleLogin onSuccess={onSuccess} onError={onError} />
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,9 +1,11 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import type { KonvaEventObject } from "konva/lib/Node";
 import CanvasPreview from "./CanvasPreview";
-import ExperienceEntry from "./ExperienceEntry";
-import ProjectEntry from "./ProjectEntry";
-import EducationEntry from "./EducationEntry";
+import CanvasSaveShare from "./CanvasSaveShare";
+import DesignFontPanel from "./DesignFontPanel";
+import TemplateSelector from "./TemplateSelector";
+import MobileTopBar from "./editor/MobileTopBar";
+import FormsPanel from "./editor/FormsPanel";
 
 interface ExperienceItem {
   title: string;
@@ -54,6 +56,7 @@ interface ResumeData {
 
 interface CanvasEditorProps {
   onDataChange?: (data: { resume: ResumeData; theme: Theme }) => void;
+  onSectionOrderChange?: (order: string[]) => void;
 }
 
 const formatProjects = (arr: ProjectItem[]) =>
@@ -76,27 +79,9 @@ const formatEducation = (arr: EducationItem[]) =>
     )
     .join("\n\n");
 
-export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
+export default function CanvasEditor({ onDataChange, onSectionOrderChange }: CanvasEditorProps) {
   const stageRef = useRef<any>(null);
-
-  const initialProjectsArray: ProjectItem[] = [
-    {
-      title: "Resume Builder App",
-      techStack: "React, Node.js",
-      description: "Built full MERN stack resume builder with live preview.",
-      link: "",
-    },
-  ];
-
-  const initialEducationArray: EducationItem[] = [
-    {
-      degree: "B.E. in Computer Engineering",
-      institution: "TCET",
-      year: "2022–2024",
-      cgpa: "8.5",
-      details: "",
-    },
-  ];
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const [resume, setResume] = useState<ResumeData>({
     name: "Arnav Singh",
@@ -117,10 +102,25 @@ export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
       { name: "React", level: "Advanced" },
       { name: "TypeScript", level: "Intermediate" },
     ],
-    projectsArray: initialProjectsArray,
-    educationArray: initialEducationArray,
-    projects: formatProjects(initialProjectsArray),
-    education: formatEducation(initialEducationArray),
+    projectsArray: [
+      {
+        title: "Resume Builder App",
+        techStack: "React, Node.js",
+        description: "Built full MERN stack resume builder with live preview.",
+        link: "",
+      },
+    ],
+    educationArray: [
+      {
+        degree: "B.E. in Computer Engineering",
+        institution: "TCET",
+        year: "2022–2024",
+        cgpa: "8.5",
+        details: "",
+      },
+    ],
+    projects: "",
+    education: "",
     contact:
       "📧 arnav.singh@example.com\n📱 +91 98765 43210\n🌐 www.arnavportfolio.com",
     tempSkills: "",
@@ -132,37 +132,63 @@ export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
   });
 
   const [selectedTemplate, setSelectedTemplate] =
-    useState<"modern" | "elegant">("modern");
-
-  // Notify parent when data changes
-  const handleDataChange = useCallback(() => {
-    if (onDataChange) onDataChange({ resume, theme });
-  }, [onDataChange, resume, theme]);
+    useState<"modern" | "elegant" | "professional" | "creative" | "minimal">("modern");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isTemplateSidebarOpen, setIsTemplateSidebarOpen] = useState(false);
+  const [sectionOrder, setSectionOrder] = useState<string[]>([
+    "summary",
+    "experience",
+    "projects",
+    "skills",
+    "education",
+    "contact",
+  ]);
 
   useEffect(() => {
-    handleDataChange();
-  }, [handleDataChange]);
+    setResume((prev) => ({
+      ...prev,
+      projects: formatProjects(prev.projectsArray),
+      education: formatEducation(prev.educationArray),
+    }));
+  }, [resume.projectsArray, resume.educationArray]);
 
-  // ✏️ On-canvas editing handler
   const handleEdit = (
     field: string,
     value: string,
     e: KonvaEventObject<MouseEvent>
   ) => {
+    // Prevent any additional handlers from firing
+    e.cancelBubble = true;
+    // @ts-ignore
+    if (e.evt && typeof e.evt.preventDefault === "function") e.evt.preventDefault();
+
     const stage = stageRef.current.getStage();
     const absPos = e.target.getAbsolutePosition();
     const container = stage.container();
+    const rect = container.getBoundingClientRect();
+    const scaleX = stage.scaleX?.() ?? 1;
+    const scaleY = stage.scaleY?.() ?? 1;
+
+    // Remove existing editor if present to avoid duplicates
+    const existing = document.getElementById("konva-inline-editor");
+    if (existing && existing.parentElement) existing.parentElement.removeChild(existing);
 
     const textarea = document.createElement("textarea");
+    textarea.id = "konva-inline-editor";
     document.body.appendChild(textarea);
     textarea.value = value;
 
+    const computedFontSize = (typeof (e.target as any).fontSize === "function"
+      ? (e.target as any).fontSize() * scaleY
+      : 16);
+
     Object.assign(textarea.style, {
       position: "absolute",
-      top: `${container.offsetTop + absPos.y}px`,
-      left: `${container.offsetLeft + absPos.x}px`,
-      width: "420px",
-      fontSize: "16px",
+      top: `${window.scrollY + rect.top + absPos.y * scaleY}px`,
+      left: `${window.scrollX + rect.left + absPos.x * scaleX}px`,
+      width: "min(90vw, 520px)",
+      maxWidth: "90vw",
+      fontSize: `${computedFontSize}px`,
       zIndex: "1000",
       padding: "8px 10px",
       border: `2px solid ${theme.primary}`,
@@ -173,7 +199,8 @@ export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
       color: "#1f2937",
       resize: "none",
       lineHeight: "1.5",
-    });
+      outline: "none",
+    } as Partial<CSSStyleDeclaration>);
 
     textarea.focus();
 
@@ -185,265 +212,201 @@ export default function CanvasEditor({ onDataChange }: CanvasEditorProps) {
     textarea.addEventListener("input", autoResize);
 
     const save = () => {
-      setResume((prev) => ({ ...prev, [field]: textarea.value }));
-      document.body.removeChild(textarea);
+      const newValue = textarea.value.replace(/\s+$/m, "");
+      setResume((prev) => {
+        if (field === "experience") {
+          const parsed = newValue
+            .split(/\n\n+/)
+            .map((block) => block.trim())
+            .filter((block) => block.length > 0)
+            .map((block) => {
+              const lines = block.split("\n");
+              return {
+                title: lines[0] || "",
+                company: lines[1] || "",
+                period: lines[2] || "",
+                location: lines[3] || "",
+                description: lines.slice(4).join("\n").trim(),
+              };
+            });
+          return { ...prev, experience: parsed };
+        }
+
+        if (field === "skills") {
+          const parsed = newValue.split(",").map((s) => {
+            const match = s.match(/(.*)\((.*)\)/);
+            return match
+              ? { name: match[1].trim(), level: match[2].trim() }
+              : { name: s.trim(), level: "Intermediate" };
+          });
+          return { ...prev, skills: parsed };
+        }
+
+        return { ...prev, [field]: newValue };
+      });
+
+      if (textarea.parentElement) textarea.parentElement.removeChild(textarea);
     };
 
     textarea.addEventListener("blur", save);
     textarea.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape") document.body.removeChild(textarea);
+      if (ev.key === "Escape") {
+        if (textarea.parentElement) textarea.parentElement.removeChild(textarea);
+      }
     });
   };
 
+  const handleDataChange = useCallback(() => {
+    onDataChange?.({ resume, theme });
+  }, [resume, theme, onDataChange]);
+
+  useEffect(() => {
+    handleDataChange();
+  }, [handleDataChange]);
+
+  const toggleSection = (section: string) => {
+    const updated = new Set(expandedSections);
+    if (updated.has(section)) {
+      updated.delete(section);
+    } else {
+      updated.add(section);
+    }
+    setExpandedSections(updated);
+  };
+
+
   return (
-    <div className="flex flex-col items-center gap-8 mt-8 w-full">
-      {/* 🎨 Template Controls */}
-      <div className="flex flex-col md:flex-row gap-6 items-center bg-gray-50 p-4 rounded-lg shadow-sm border w-full justify-center">
-        <div className="flex gap-3 items-center">
-          <span className="text-gray-700 font-medium mr-2">Template:</span>
-          {["modern", "elegant"].map((t) => (
-            <button
-              key={t}
-              onClick={() => setSelectedTemplate(t as "modern" | "elegant")}
-              className={`px-3 py-1 rounded-md border text-sm font-medium transition ${
-                selectedTemplate === t
-                  ? "bg-blue-100 border-blue-400 text-blue-600"
-                  : "bg-white border-gray-300 hover:bg-gray-100"
-              }`}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-2 items-center">
-          <label className="text-gray-700 font-medium">Primary Color:</label>
-          <input
-            type="color"
-            value={theme.primary}
-            onChange={(e) => setTheme({ ...theme, primary: e.target.value })}
-            className="w-10 h-10 cursor-pointer border-2 border-gray-300 rounded-full shadow-sm"
-          />
-        </div>
-
-        <div className="flex gap-2 items-center">
-          <label className="text-gray-700 font-medium">Font:</label>
-          <select
-            value={theme.fontFamily}
-            onChange={(e) => setTheme({ ...theme, fontFamily: e.target.value })}
-            className="px-3 py-2 border rounded-md bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+    <div className="w-full min-h-screen bg-gray-50">
+      {isTemplateSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-50"
+          onClick={() => setIsTemplateSidebarOpen(false)}
+        >
+          <div
+            className="absolute left-0 top-0 bottom-0 w-80 max-w-[90vw] bg-white shadow-2xl overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
           >
-            <option value="Poppins, sans-serif">Poppins</option>
-            <option value="Georgia, serif">Georgia</option>
-            <option value="Courier New, monospace">Courier New</option>
-            <option value="Roboto, sans-serif">Roboto</option>
-            <option value="Times New Roman, serif">Times New Roman</option>
-          </select>
-        </div>
-      </div>
-
-      {/* 🧾 Canvas Preview */}
-      <CanvasPreview
-        stageRef={stageRef}
-        resume={resume}
-        theme={theme}
-        selectedTemplate={selectedTemplate}
-        onEdit={handleEdit}
-      />
-
-      {/* 🧠 Editable Form */}
-      <div className="w-full max-w-2xl space-y-6">
-        {/* Basic Info */}
-        <div>
-          <h2 className="text-xl font-semibold mb-2 text-gray-800">
-            Basic Information
-          </h2>
-          {["name", "designation", "summary", "contact"].map((field) => (
-            <div key={field} className="mb-3">
-              <label className="block text-gray-700 capitalize mb-1">
-                {field}
-              </label>
-              <textarea
-                value={(resume as any)[field]}
-                onChange={(e) =>
-                  setResume({ ...resume, [field]: e.target.value })
-                }
-                className="w-full border rounded-md p-2 bg-gray-50"
-                rows={field === "summary" || field === "contact" ? 3 : 1}
+            <div className="sticky top-0 bg-white border-b p-3 flex items-center justify-between z-10">
+              <h2 className="text-base font-semibold text-gray-800">Templates</h2>
+              <button
+                onClick={() => setIsTemplateSidebarOpen(false)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-3">
+              <TemplateSelector
+                selectedTemplate={selectedTemplate}
+                onTemplateChange={(template) => {
+                  setSelectedTemplate(template);
+                  setIsTemplateSidebarOpen(false);
+                }}
               />
             </div>
-          ))}
+          </div>
         </div>
+      )}
 
-        {/* Experience */}
-        <div>
-          <h2 className="text-xl font-semibold mb-2 text-gray-800">
-            Experience
-          </h2>
-          {resume.experience.map((exp, idx) => (
-            <ExperienceEntry
-              key={idx}
-              entry={exp}
-              onChange={(field: string, value: string) => {
-                const updated = [...resume.experience];
-                updated[idx] = { ...updated[idx], [field]: value };
-                setResume({ ...resume, experience: updated });
-              }}
-              onDelete={() => {
-                const updated = resume.experience.filter((_, i) => i !== idx);
-                setResume({ ...resume, experience: updated });
-              }}
-            />
-          ))}
-          <button
-            onClick={() =>
-              setResume({
-                ...resume,
-                experience: [
-                  ...resume.experience,
-                  {
-                    title: "",
-                    company: "",
-                    period: "",
-                    location: "",
-                    description: "",
-                  },
-                ],
-              })
-            }
-            className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition text-sm"
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-50"
+          onClick={() => setIsSidebarOpen(false)}
+        >
+          <div
+            className="absolute right-0 top-0 bottom-0 w-80 max-w-[90vw] bg-white shadow-2xl overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
           >
-            + Add Experience
-          </button>
+            <div className="sticky top-0 bg-white border-b p-3 flex items-center justify-between z-10">
+              <h2 className="text-base font-semibold text-gray-800">Design</h2>
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-3">
+              <DesignFontPanel
+                theme={theme}
+                onThemeChange={(updates) =>
+                  setTheme((prev) => ({ ...prev, ...updates }))
+                }
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <MobileTopBar
+        onOpenTemplates={() => setIsTemplateSidebarOpen(true)}
+        onOpenDesign={() => setIsSidebarOpen(true)}
+      />
+
+      {/* Mobile & Tablet Layout: Single Column */}
+      <div className="lg:hidden w-full px-2 sm:px-4 py-3 space-y-3">
+        {/* Save & Share */}
+        <div className="w-full">
+          <CanvasSaveShare resume={resume} theme={theme} template={selectedTemplate} />
         </div>
 
-        {/* Projects */}
-        <div>
-          <h2 className="text-xl font-semibold mb-2 text-gray-800">Projects</h2>
-          {resume.projectsArray.map((proj, idx) => (
-            <ProjectEntry
-              key={idx}
-              entry={proj}
-              onChange={(field, value) => {
-                const updated = [...resume.projectsArray];
-                updated[idx] = { ...updated[idx], [field]: value };
-                setResume({
-                  ...resume,
-                  projectsArray: updated,
-                  projects: formatProjects(updated),
-                });
-              }}
-              onDelete={() => {
-                const updated = resume.projectsArray.filter((_, i) => i !== idx);
-                setResume({
-                  ...resume,
-                  projectsArray: updated,
-                  projects: formatProjects(updated),
-                });
-              }}
-            />
-          ))}
-          <button
-            onClick={() => {
-              const updated = [
-                ...resume.projectsArray,
-                { title: "", techStack: "", description: "", link: "" },
-              ];
-              setResume({
-                ...resume,
-                projectsArray: updated,
-                projects: formatProjects(updated),
-              });
+        {/* Canvas */}
+        <div className="w-full overflow-x-auto bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg shadow-sm p-1 sm:p-2">
+          <CanvasPreview
+            stageRef={stageRef}
+            resume={resume}
+            theme={theme}
+            selectedTemplate={selectedTemplate}
+            onEdit={handleEdit}
+            sectionOrder={sectionOrder}
+            onSectionOrderChange={(newOrder) => {
+              setSectionOrder(newOrder);
+              onSectionOrderChange?.(newOrder);
             }}
-            className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition text-sm"
-          >
-            + Add Project
-          </button>
-        </div>
-
-        {/* Skills */}
-        <div>
-          <h2 className="text-xl font-semibold mb-2 text-gray-800">Skills</h2>
-          <textarea
-            value={
-              resume.tempSkills !== undefined
-                ? resume.tempSkills
-                : resume.skills.map((s) => `${s.name} (${s.level})`).join(", ")
-            }
-            onChange={(e) =>
-              setResume((prev) => ({
-                ...prev,
-                tempSkills: e.target.value,
-              }))
-            }
-            onBlur={(e) => {
-              const text = e.target.value.trim();
-              if (!text) {
-                setResume((prev) => ({ ...prev, skills: [], tempSkills: "" }));
-                return;
-              }
-              const parsed = text.split(",").map((s) => {
-                const match = s.match(/(.*)\((.*)\)/);
-                return match
-                  ? { name: match[1].trim(), level: match[2].trim() }
-                  : { name: s.trim(), level: "Intermediate" };
-              });
-              setResume((prev) => ({ ...prev, skills: parsed, tempSkills: "" }));
-            }}
-            className="w-full border rounded-md p-2 bg-gray-50"
-            rows={2}
-            placeholder="e.g. React (Advanced), TypeScript (Intermediate)"
           />
         </div>
 
-        {/* Education */}
-        <div>
-          <h2 className="text-xl font-semibold mb-2 text-gray-800">Education</h2>
-          {resume.educationArray.map((edu, idx) => (
-            <EducationEntry
-              key={idx}
-              entry={edu}
-              onChange={(field, value) => {
-                const updated = [...resume.educationArray];
-                updated[idx] = { ...updated[idx], [field]: value };
-                setResume({
-                  ...resume,
-                  educationArray: updated,
-                  education: formatEducation(updated),
-                });
-              }}
-              onDelete={() => {
-                const updated = resume.educationArray.filter((_, i) => i !== idx);
-                setResume({
-                  ...resume,
-                  educationArray: updated,
-                  education: formatEducation(updated),
-                });
-              }}
-            />
-          ))}
-          <button
-            onClick={() => {
-              const updated = [
-                ...resume.educationArray,
-                {
-                  degree: "",
-                  institution: "",
-                  year: "",
-                  cgpa: "",
-                  details: "",
-                },
-              ];
-              setResume({
-                ...resume,
-                educationArray: updated,
-                education: formatEducation(updated),
-              });
+        {/* Forms */}
+        <FormsPanel
+          wrapperClassName="w-full space-y-2"
+          resume={resume}
+          setResume={setResume as any}
+          expandedSections={expandedSections}
+          toggleSection={toggleSection}
+          formatProjects={formatProjects as any}
+          formatEducation={formatEducation as any}
+        />
+      </div>
+
+      {/* Desktop Layout: Stack canvas then forms (no persistent sidebars) */}
+      <div className="hidden lg:block w-full px-3 sm:px-4 lg:px-6 py-4 lg:py-6 max-w-[1200px] mx-auto">
+        <div className="w-full mb-4">
+          <CanvasSaveShare resume={resume} theme={theme} template={selectedTemplate} />
+        </div>
+        <div className="w-full overflow-x-auto bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg shadow-sm p-3">
+          <CanvasPreview
+            stageRef={stageRef}
+            resume={resume}
+            theme={theme}
+            selectedTemplate={selectedTemplate}
+            onEdit={handleEdit}
+            sectionOrder={sectionOrder}
+            onSectionOrderChange={(newOrder) => {
+              setSectionOrder(newOrder);
+              onSectionOrderChange?.(newOrder);
             }}
-            className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition text-sm"
-          >
-            + Add Education
-          </button>
+          />
+        </div>
+        <div className="mt-6">
+          <FormsPanel
+            wrapperClassName="w-full space-y-3"
+            resume={resume}
+            setResume={setResume as any}
+            expandedSections={expandedSections}
+            toggleSection={toggleSection}
+            formatProjects={formatProjects as any}
+            formatEducation={formatEducation as any}
+          />
         </div>
       </div>
     </div>

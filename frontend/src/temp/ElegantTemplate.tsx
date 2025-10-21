@@ -2,40 +2,49 @@ import React, { useMemo } from "react";
 import { Layer, Rect, Text, Line, Circle } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 
-interface ExperienceItem {
-  title: string;
-  company: string;
-  period: string;
-  location: string;
-  description: string;
-}
-
 interface TemplateProps {
   name: string;
   designation: string;
   summary: string;
-  experience: string; // ✅ now string
+  experience: string;
   projects: string;
-  skills: string; // ✅ now string
+  skills: string;
   education: string;
   contact: string;
-  theme: { primary: string; fontFamily: string };
+  theme: {
+    primary: string;
+    fontFamily: string;
+    fontSize?: number;
+    lineHeight?: number;
+    pageMargin?: number;
+    sectionSpacing?: number;
+  };
   onEdit: (field: string, value: string, e: KonvaEventObject<MouseEvent>) => void;
+  scale?: number;
+  isMobile?: boolean;
+  compactMode?: boolean;
+  canvasWidth?: number;
+  sectionOrder?: string[];
 }
 
+const getTextHeight = (
+  text: string,
+  fontSize: number,
+  width: number,
+  lineHeight: number
+) => {
+  if (!text || text.trim().length === 0) return 0;
 
-// Helper: measure dynamic text height
-const getTextHeight = (text: string, fontSize: number, width: number) => {
   const lines = text.split("\n");
-  const avgLineHeight = fontSize * 1.5;
+  const avgLineHeight = fontSize * lineHeight;
   let totalLines = 0;
 
   lines.forEach((line) => {
-    const charsPerLine = Math.floor(width / (fontSize * 0.55));
+    const charsPerLine = Math.floor(width / (fontSize * 0.52));
     totalLines += Math.max(1, Math.ceil(line.length / charsPerLine));
   });
 
-  return totalLines * avgLineHeight + 10;
+  return totalLines * avgLineHeight + 15;
 };
 
 export default function ElegantTemplate({
@@ -49,314 +58,398 @@ export default function ElegantTemplate({
   contact,
   theme,
   onEdit,
+  scale = 1,
+  isMobile = false,
+  compactMode = false,
+  canvasWidth = 600,
+  sectionOrder = ["summary", "experience", "projects", "skills", "education", "contact"],
 }: TemplateProps) {
-  // 🧠 Dynamic layout based on text heights
-  const layout = useMemo(() => {
-    const summaryHeight = getTextHeight(summary, 13, 680);
+  const responsive = useMemo(() => {
+    const scaleFactor = canvasWidth / 800;
+    const fontSizeSetting = theme.fontSize ?? 3;
+    const fontScaleMap = { 1: 0.85, 2: 0.95, 3: 1, 4: 1.1, 5: 1.2 } as const;
+    const fontScale =
+      fontScaleMap[(Math.min(5, Math.max(1, fontSizeSetting)) as 1 | 2 | 3 | 4 | 5)] || 1;
 
-    const expHeights = Array.isArray(experience)
-      ? experience.map((exp) => {
-          const block = `${exp.title} - ${exp.company} (${exp.period})
-${exp.location}
-${exp.description}`;
-          return getTextHeight(block, 13, 320);
-        })
-      : [getTextHeight(String(experience || ""), 13, 320)];
+    const basePadding = 50 * scaleFactor;
+    const marginSetting = theme.pageMargin ?? 4;
+    const marginScale = 0.6 + ((Math.min(8, Math.max(1, marginSetting)) - 1) / 7) * 1.2;
+    const padding = basePadding * marginScale;
 
-    const EXP_GAP = 20;
-    const expHeight = expHeights.reduce(
-      (sum, h, i) => sum + h + (i ? EXP_GAP : 0),
-      0
-    );
-
-    const projHeight = getTextHeight(projects, 13, 320);
-    const skillsHeight = getTextHeight(skills, 13, 280);
-    const eduHeight = getTextHeight(education, 13, 280);
+    const baseSectionSpacing = 50 * scaleFactor;
+    const spacingSetting = theme.sectionSpacing ?? 2;
+    const spacingScale = 0.7 + ((Math.min(8, Math.max(1, spacingSetting)) - 1) / 7) * 1.2;
 
     return {
-      summaryHeight,
-      expHeight,
-      projHeight,
-      skillsHeight,
-      eduHeight,
+      padding,
+      fontSize: {
+        name: Math.max(36, 40 * scaleFactor) * fontScale,
+        designation: Math.max(14, 18 * scaleFactor) * fontScale,
+        section: Math.max(12, 14 * scaleFactor) * fontScale,
+        body: Math.max(11, 12 * scaleFactor) * fontScale,
+        small: Math.max(9, 10 * scaleFactor) * fontScale,
+        contact: Math.max(9, 10 * scaleFactor) * fontScale,
+      },
+      lineHeight: {
+        name: 1.1,
+        designation: 1.2,
+        body: theme.lineHeight ?? 1.5,
+      },
+      gaps: {
+        sectionTitle: 12 * scaleFactor,
+        sectionSpacing: baseSectionSpacing * spacingScale,
+        blockSpacing: 18 * scaleFactor * spacingScale,
+      },
+      columnWidths: {
+        left: (canvasWidth - padding * 2) * 0.48,
+        right: (canvasWidth - padding * 2) * 0.48,
+        gap: (canvasWidth - padding * 2) * 0.04,
+      },
     };
-  }, [summary, experience, projects, skills, education]);
+  }, [canvasWidth, theme.fontSize, theme.pageMargin, theme.sectionSpacing, theme.lineHeight]);
 
-  // 🎯 Dynamic Y positions
-  const startY = {
-    summary: 260,
-    experience: 260 + layout.summaryHeight + 60,
-    projects: 260 + layout.summaryHeight + layout.expHeight + 120,
-    skills: 260 + layout.summaryHeight + layout.expHeight + 60,
-    education:
-      260 +
-      layout.summaryHeight +
-      layout.expHeight +
-      layout.skillsHeight +
-      120,
+  const sectionContent = useMemo(() => {
+    return {
+      summary: { title: "PROFILE SUMMARY", content: summary, type: "center" },
+      experience: { title: "EXPERIENCE", content: experience, type: "left" },
+      projects: { title: "PROJECTS", content: projects, type: "left" },
+      skills: { title: "SKILLS", content: skills, type: "right" },
+      education: { title: "EDUCATION", content: education, type: "right" },
+      contact: { title: "CONTACT", content: contact, type: "center" },
+    };
+  }, [summary, experience, projects, skills, education, contact]);
+
+  const layout = useMemo(() => {
+    const experienceBlocks = String(experience)
+      .split("\n\n")
+      .map((b) => b.trim())
+      .filter((b) => b.length > 0);
+
+    return {
+      experienceBlocks,
+      leftColWidth: responsive.columnWidths.left,
+      rightColWidth: responsive.columnWidths.right,
+    };
+  }, [experience, responsive]);
+
+  const positions = useMemo(() => {
+    const centerX = canvasWidth / 2;
+    const leftX = responsive.padding;
+    const rightX = responsive.padding + layout.leftColWidth + responsive.columnWidths.gap;
+
+    const positions: { [key: string]: { title: number; content: number } } = {};
+
+    let leftY = 240;
+    let rightY = 240;
+    let centerY = 220;
+
+    for (const section of sectionOrder) {
+      const content = sectionContent[section as keyof typeof sectionContent];
+      if (!content) continue;
+
+      const text = content.content;
+      let height = 0;
+
+      if (section === "experience") {
+        height = layout.experienceBlocks.reduce((sum, block) => {
+          return (
+            sum +
+            getTextHeight(
+              block,
+              responsive.fontSize.body,
+              layout.leftColWidth,
+              responsive.lineHeight.body
+            ) +
+            responsive.gaps.blockSpacing
+          );
+        }, 0);
+      } else {
+        const colWidth =
+          content.type === "left"
+            ? layout.leftColWidth
+            : content.type === "right"
+            ? layout.rightColWidth
+            : canvasWidth - responsive.padding * 2;
+        height = getTextHeight(
+          text,
+          responsive.fontSize.body,
+          colWidth,
+          responsive.lineHeight.body
+        );
+      }
+
+      if (content.type === "center") {
+        positions[section] = { title: centerY, content: centerY + responsive.gaps.sectionTitle };
+        centerY += responsive.gaps.sectionTitle + height + responsive.gaps.sectionSpacing;
+      } else if (content.type === "left") {
+        positions[section] = { title: leftY, content: leftY + responsive.gaps.sectionTitle };
+        leftY += responsive.gaps.sectionTitle + height + responsive.gaps.sectionSpacing;
+      } else {
+        positions[section] = { title: rightY, content: rightY + responsive.gaps.sectionTitle };
+        rightY += responsive.gaps.sectionTitle + height + responsive.gaps.sectionSpacing;
+      }
+    }
+
+    return {
+      centerX,
+      leftX,
+      rightX,
+      sections: positions,
+    };
+  }, [responsive, layout, sectionOrder, sectionContent, canvasWidth]);
+
+  const renderSection = (sectionKey: string) => {
+    const content = sectionContent[sectionKey as keyof typeof sectionContent];
+    if (!content || !positions.sections[sectionKey]) return null;
+
+    const pos = positions.sections[sectionKey];
+    let x: number;
+    let width: number;
+    let align: "left" | "center" | "right" = "left";
+
+    if (content.type === "center") {
+      x = 0;
+      width = canvasWidth;
+      align = "center";
+    } else if (content.type === "left") {
+      x = positions.leftX;
+      width = layout.leftColWidth;
+    } else {
+      x = positions.rightX;
+      width = layout.rightColWidth;
+    }
+
+    return (
+      <React.Fragment key={sectionKey}>
+        {/* Section Title */}
+        <Text
+          text={content.title}
+          x={x}
+          y={pos.title}
+          width={width}
+          align={align}
+          fontSize={responsive.fontSize.section}
+          fontStyle="bold"
+          fill={theme.primary}
+          fontFamily={theme.fontFamily}
+          letterSpacing={1.5}
+        />
+
+        {/* Elegant Title Underline */}
+        <Line
+          points={[
+            content.type === "center" ? canvasWidth / 2 - 30 : x,
+            pos.title + responsive.fontSize.section + 6,
+            content.type === "center" ? canvasWidth / 2 + 30 : x + 60,
+            pos.title + responsive.fontSize.section + 6,
+          ]}
+          stroke={theme.primary}
+          strokeWidth={1.5}
+          opacity={0.7}
+        />
+        <Circle
+          x={content.type === "center" ? canvasWidth / 2 - 30 : x}
+          y={pos.title + responsive.fontSize.section + 6}
+          radius={2}
+          fill={theme.primary}
+          opacity={0.8}
+        />
+        <Circle
+          x={content.type === "center" ? canvasWidth / 2 + 30 : x + 60}
+          y={pos.title + responsive.fontSize.section + 6}
+          radius={2}
+          fill={theme.primary}
+          opacity={0.8}
+        />
+
+        {/* Section Content */}
+        {sectionKey === "experience" ? (
+          (() => {
+            let y = pos.content;
+            return layout.experienceBlocks.map((block, i) => {
+              const blockHeight = getTextHeight(
+                block,
+                responsive.fontSize.body,
+                width,
+                responsive.lineHeight.body
+              );
+              const node = (
+                <Text
+                  key={`${sectionKey}-${i}`}
+                  text={block}
+                  x={x}
+                  y={y}
+                  width={width}
+                  align={align}
+                  fontSize={responsive.fontSize.body}
+                  fill="#444"
+                  lineHeight={responsive.lineHeight.body}
+                  fontFamily={theme.fontFamily}
+                  onClick={(e: KonvaEventObject<MouseEvent>) =>
+                    onEdit(sectionKey, content.content, e)
+                  }
+                />
+              );
+              y += blockHeight + responsive.gaps.blockSpacing;
+              return node;
+            });
+          })()
+        ) : (
+          <Text
+            text={content.content}
+            x={x}
+            y={pos.content}
+            width={width}
+            align={align}
+            fontSize={responsive.fontSize.body}
+            fill="#444"
+            lineHeight={responsive.lineHeight.body}
+            fontFamily={theme.fontFamily}
+            onClick={(e: KonvaEventObject<MouseEvent>) =>
+              onEdit(sectionKey, content.content, e)
+            }
+          />
+        )}
+      </React.Fragment>
+    );
   };
+
+  const headerY = 70;
 
   return (
     <Layer>
-      {/* === Elegant Decorations === */}
-      <Rect x={0} y={0} width={800} height={4} fill={theme.primary} opacity={0.8} />
-      <Rect x={0} y={0} width={2} height={1200} fill={theme.primary} opacity={0.15} />
-      <Rect x={798} y={0} width={2} height={1200} fill={theme.primary} opacity={0.15} />
-      <Circle x={60} y={60} radius={100} fill={theme.primary} opacity={0.03} />
-      <Circle x={740} y={60} radius={80} fill={theme.primary} opacity={0.04} />
+      {/* Elegant decorative top border */}
+      <Rect x={0} y={0} width={canvasWidth} height={3} fill={theme.primary} opacity={0.9} />
 
-      {/* === HEADER === */}
+      {/* Subtle side accents */}
+      <Rect x={0} y={0} width={1.5} height={canvasWidth * 1.5} fill={theme.primary} opacity={0.12} />
+      <Rect
+        x={canvasWidth - 1.5}
+        y={0}
+        width={1.5}
+        height={canvasWidth * 1.5}
+        fill={theme.primary}
+        opacity={0.12}
+      />
+
+      {/* Decorative circles - more subtle */}
+      <Circle
+        x={responsive.padding * 1.5}
+        y={responsive.padding * 1.5}
+        radius={60 * (canvasWidth / 800)}
+        fill={theme.primary}
+        opacity={0.02}
+      />
+      <Circle
+        x={canvasWidth - responsive.padding * 1.5}
+        y={responsive.padding * 1.5}
+        radius={45 * (canvasWidth / 800)}
+        fill={theme.primary}
+        opacity={0.03}
+      />
+
+      {/* CENTERED HEADER SECTION */}
       <Text
-        text={name}
+        text={name.toUpperCase()}
         x={0}
-        y={80}
-        width={800}
+        y={headerY}
+        width={canvasWidth}
         align="center"
-        fontSize={42}
+        fontSize={responsive.fontSize.name}
         fontFamily={theme.fontFamily}
         fill={theme.primary}
         fontStyle="bold"
-        letterSpacing={2}
+        letterSpacing={1.8}
+        lineHeight={responsive.lineHeight.name}
         onClick={(e: KonvaEventObject<MouseEvent>) => onEdit("name", name, e)}
       />
 
-      <Line points={[320, 135, 480, 135]} stroke={theme.primary} strokeWidth={2} opacity={0.6} />
-      <Circle x={320} y={135} radius={3} fill={theme.primary} opacity={0.8} />
-      <Circle x={480} y={135} radius={3} fill={theme.primary} opacity={0.8} />
+      {/* Elegant divider line under name */}
+      <Line
+        points={[
+          canvasWidth / 2 - 50,
+          headerY + responsive.fontSize.name + 12,
+          canvasWidth / 2 + 50,
+          headerY + responsive.fontSize.name + 12,
+        ]}
+        stroke={theme.primary}
+        strokeWidth={1.8}
+        opacity={0.7}
+      />
+      <Circle
+        x={canvasWidth / 2 - 50}
+        y={headerY + responsive.fontSize.name + 12}
+        radius={2.5}
+        fill={theme.primary}
+        opacity={0.9}
+      />
+      <Circle
+        x={canvasWidth / 2 + 50}
+        y={headerY + responsive.fontSize.name + 12}
+        radius={2.5}
+        fill={theme.primary}
+        opacity={0.9}
+      />
 
+      {/* DESIGNATION */}
       <Text
         text={designation}
         x={0}
-        y={150}
-        width={800}
+        y={headerY + responsive.fontSize.name + 30}
+        width={canvasWidth}
         align="center"
-        fontSize={20}
+        fontSize={responsive.fontSize.designation}
         fontFamily={theme.fontFamily}
         fill="#555"
-        letterSpacing={3}
-        onClick={(e: KonvaEventObject<MouseEvent>) =>
-          onEdit("designation", designation, e)
-        }
+        letterSpacing={1.5}
+        lineHeight={responsive.lineHeight.designation}
+        onClick={(e: KonvaEventObject<MouseEvent>) => onEdit("designation", designation, e)}
       />
 
-      {/* === CONTACT === */}
-      <Rect x={250} y={190} width={300} height={1} fill={theme.primary} opacity={0.2} />
+      {/* CONTACT INFO */}
+      <Rect
+        x={responsive.padding + 40}
+        y={headerY + responsive.fontSize.name + responsive.fontSize.designation + 50}
+        width={canvasWidth - responsive.padding * 2 - 80}
+        height={0.8}
+        fill={theme.primary}
+        opacity={0.15}
+      />
       <Text
         text={contact}
         x={0}
-        y={200}
-        width={800}
+        y={headerY + responsive.fontSize.name + responsive.fontSize.designation + 65}
+        width={canvasWidth}
         align="center"
-        fontSize={11}
+        fontSize={responsive.fontSize.contact}
         fill="#666"
-        lineHeight={1.5}
+        lineHeight={1.4}
         fontFamily={theme.fontFamily}
         onClick={(e: KonvaEventObject<MouseEvent>) => onEdit("contact", contact, e)}
       />
 
-      {/* === PROFILE SUMMARY === */}
-      <Rect x={60} y={startY.summary - 30} width={680} height={1} fill={theme.primary} opacity={0.3} />
-      <Text
-        text="PROFILE SUMMARY"
-        x={0}
-        y={startY.summary - 20}
-        width={800}
-        align="center"
-        fontSize={14}
-        fontStyle="bold"
-        fill={theme.primary}
-        fontFamily={theme.fontFamily}
-        letterSpacing={2}
-      />
-      <Text
-        text={summary}
-        x={60}
-        y={startY.summary}
-        width={680}
-        align="center"
-        fontSize={13}
-        fill="#444"
-        lineHeight={1.7}
-        fontFamily={theme.fontFamily}
-        onClick={(e: KonvaEventObject<MouseEvent>) => onEdit("summary", summary, e)}
-      />
+      {/* RENDER SECTIONS IN ORDER */}
+      {sectionOrder.map((section) => renderSection(section))}
 
-      {/* === LEFT COLUMN (Experience + Projects) === */}
-      <Rect
-        x={50}
-        y={startY.experience - 50}
-        width={360}
-        height={layout.expHeight + layout.projHeight + 120}
-        fill={theme.primary}
-        opacity={0.02}
-        cornerRadius={8}
-      />
-
-      {/* EXPERIENCE */}
-      <Text
-        text="EXPERIENCE"
-        x={70}
-        y={startY.experience - 30}
-        fontSize={16}
-        fontStyle="bold"
-        fill={theme.primary}
-        fontFamily={theme.fontFamily}
-      />
-      <Rect x={70} y={startY.experience - 5} width={50} height={2} fill={theme.primary} opacity={0.6} />
-
-      {Array.isArray(experience) ? (
-        (() => {
-          let y = startY.experience + 10;
-          const EXP_GAP = 20;
-          return experience.map((exp, i) => {
-            const blockText = `${exp.title} - ${exp.company} (${exp.period})
-${exp.location}
-${exp.description}`;
-            const h = getTextHeight(blockText, 13, 320);
-            const node = (
-              <Text
-                key={i}
-                text={blockText}
-                x={70}
-                y={y}
-                width={320}
-                fontSize={13}
-                fill="#444"
-                lineHeight={1.6}
-                fontFamily={theme.fontFamily}
-                onClick={(e: KonvaEventObject<MouseEvent>) =>
-                  onEdit(
-                    "experience",
-                    experience
-                      .map(
-                        (ex) =>
-                          `${ex.title} - ${ex.company} (${ex.period})\n${ex.location}\n${ex.description}`
-                      )
-                      .join("\n\n"),
-                    e
-                  )
-                }
-              />
-            );
-            y += h + EXP_GAP;
-            return node;
-          });
-        })()
-      ) : (
-        <Text
-          text={String(experience || "")}
-          x={70}
-          y={startY.experience + 10}
-          width={320}
-          fontSize={13}
-          fill="#444"
-          lineHeight={1.6}
-          fontFamily={theme.fontFamily}
-          onClick={(e: KonvaEventObject<MouseEvent>) =>
-            onEdit("experience", String(experience || ""), e)
-          }
-        />
-      )}
-
-      {/* PROJECTS */}
-      <Text
-        text="PROJECTS"
-        x={70}
-        y={startY.projects - 30}
-        fontSize={16}
-        fontStyle="bold"
-        fill={theme.primary}
-        fontFamily={theme.fontFamily}
-      />
-      <Rect x={70} y={startY.projects - 5} width={50} height={2} fill={theme.primary} opacity={0.6} />
-      <Text
-        text={projects}
-        x={70}
-        y={startY.projects + 10}
-        width={320}
-        fontSize={13}
-        fill="#444"
-        lineHeight={1.6}
-        fontFamily={theme.fontFamily}
-        onClick={(e: KonvaEventObject<MouseEvent>) => onEdit("projects", projects, e)}
-      />
-
-      {/* === RIGHT COLUMN (Skills + Education) === */}
-      <Rect
-        x={430}
-        y={startY.skills - 50}
-        width={320}
-        height={layout.skillsHeight + layout.eduHeight + 120}
-        fill={theme.primary}
-        opacity={0.02}
-        cornerRadius={8}
-      />
-
-      {/* SKILLS */}
-      <Text
-        text="SKILLS"
-        x={450}
-        y={startY.skills - 30}
-        fontSize={16}
-        fontStyle="bold"
-        fill={theme.primary}
-        fontFamily={theme.fontFamily}
-      />
-      <Rect x={450} y={startY.skills - 5} width={50} height={2} fill={theme.primary} opacity={0.6} />
-      <Text
-        text={skills}
-        x={450}
-        y={startY.skills + 10}
-        width={280}
-        fontSize={13}
-        fill="#444"
-        lineHeight={1.6}
-        fontFamily={theme.fontFamily}
-        onClick={(e: KonvaEventObject<MouseEvent>) => onEdit("skills", skills, e)}
-      />
-
-      {/* EDUCATION */}
-      <Text
-        text="EDUCATION"
-        x={450}
-        y={startY.education - 30}
-        fontSize={16}
-        fontStyle="bold"
-        fill={theme.primary}
-        fontFamily={theme.fontFamily}
-      />
-      <Rect x={450} y={startY.education - 5} width={50} height={2} fill={theme.primary} opacity={0.6} />
-      <Text
-        text={education}
-        x={450}
-        y={startY.education + 10}
-        width={280}
-        fontSize={13}
-        fill="#444"
-        lineHeight={1.6}
-        fontFamily={theme.fontFamily}
-        onClick={(e: KonvaEventObject<MouseEvent>) => onEdit("education", education, e)}
-      />
-
-      {/* === FOOTER === */}
+      {/* Elegant bottom accent */}
       <Rect
         x={0}
-        y={Math.max(startY.projects + layout.projHeight, startY.education + layout.eduHeight) + 80}
-        width={800}
-        height={60}
+        y={Math.max(...Object.values(positions.sections).map((p) => p.content + 80))}
+        width={canvasWidth}
+        height={40}
         fill={theme.primary}
-        opacity={0.08}
+        opacity={0.06}
       />
       <Text
-        text="Designed with Elegance • Professional Resume"
+        text="Elegantly Designed Professional Resume"
         x={0}
-        y={Math.max(startY.projects + layout.projHeight, startY.education + layout.eduHeight) + 102}
-        width={800}
+        y={Math.max(...Object.values(positions.sections).map((p) => p.content + 80)) + 15}
+        width={canvasWidth}
         align="center"
-        fontSize={10}
+        fontSize={responsive.fontSize.small}
         fill="#888"
         fontFamily={theme.fontFamily}
-        letterSpacing={1}
+        letterSpacing={0.8}
       />
     </Layer>
   );

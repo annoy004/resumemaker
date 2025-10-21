@@ -44,21 +44,21 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 px-8 py-10">
+    <div className="min-h-screen bg-gray-50 px-3 sm:px-4 lg:px-6 py-6 lg:py-10">
       {/* ✅ Section 1: My Resumes */}
       <div className="mb-12">
-        <h1 className="text-3xl font-bold text-gray-800">My Resume</h1>
-        <p className="text-gray-500 mt-1">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">My Resume</h1>
+        <p className="text-gray-500 mt-1 text-sm sm:text-base">
           Start creating your AI-powered resume for your next job role
         </p>
 
-        <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 mt-6">
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 mt-4 sm:mt-6">
           {/* Create New Resume */}
           <div
             onClick={() => navigate("/editor/new")}
-            className="h-64 flex items-center justify-center border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-purple-500 transition group bg-white shadow-sm"
+            className="h-48 sm:h-56 md:h-64 flex items-center justify-center border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-purple-500 transition group bg-white shadow-sm"
           >
-            <span className="text-4xl text-gray-400 group-hover:text-purple-500 transition">
+            <span className="text-3xl sm:text-4xl text-gray-400 group-hover:text-purple-500 transition">
               +
             </span>
           </div>
@@ -77,7 +77,7 @@ export default function Dashboard() {
               return (
                 <div
                   key={resume.id}
-                  className={`relative h-64 rounded-xl shadow-md overflow-hidden cursor-pointer transform hover:scale-[1.03] transition`}
+                  className={`relative h-48 sm:h-56 md:h-64 rounded-xl shadow-md overflow-hidden cursor-pointer transform hover:scale-[1.02] transition`}
                   onClick={() => navigate(`/editor/${resume.id}`)}
                 >
                   <div
@@ -88,9 +88,9 @@ export default function Dashboard() {
                     <img
                       src="https://cdn-icons-png.flaticon.com/512/3135/3135673.png"
                       alt="Resume Icon"
-                      className="w-16 mb-4"
+                      className="w-12 sm:w-14 md:w-16 mb-3 sm:mb-4"
                     />
-                    <h2 className="text-lg font-semibold text-center">
+                    <h2 className="text-base sm:text-lg font-semibold text-center px-2">
                       {resume.title || "Untitled Resume"}
                     </h2>
                   </div>
@@ -98,7 +98,7 @@ export default function Dashboard() {
               );
             })
           ) : (
-            <p className="text-gray-400 col-span-full text-center mt-4">
+            <p className="text-gray-400 col-span-full text-center mt-4 text-sm">
               No resumes yet. Create one to get started!
             </p>
           )}
@@ -107,27 +107,27 @@ export default function Dashboard() {
 
       {/* ✅ Section 2: Choose a Template */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">
           Choose a Template
         </h1>
-        <p className="text-gray-500 mb-4">
+        <p className="text-gray-500 mb-4 text-sm sm:text-base">
           Pick a style that fits your personality and career goals
         </p>
 
-        <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {templates.map((template) => (
             <div
               key={template.id}
               onClick={() =>
                 navigate(`/editor/new?template=${template.id}`)
               }
-              className="relative bg-white rounded-xl shadow-md overflow-hidden cursor-pointer transform hover:scale-[1.02] transition"
+              className="relative bg-white rounded-xl shadow-md overflow-hidden cursor-pointer transform hover:scale-[1.01] transition"
             >
               {/* Template Image */}
               <img
                 src={template.img}
                 alt={template.name}
-                className="w-full h-48 object-cover"
+                className="w-full h-40 sm:h-44 md:h-48 object-cover"
               />
 
               {/* Bottom Gradient */}
@@ -137,10 +137,10 @@ export default function Dashboard() {
 
               {/* Template Info */}
               <div className="absolute bottom-2 left-4 right-4 z-10">
-                <h2 className="text-white text-lg font-semibold">
+                <h2 className="text-white text-base sm:text-lg font-semibold">
                   {template.name}
                 </h2>
-                <p className="text-white text-sm opacity-80">
+                <p className="text-white text-xs sm:text-sm opacity-80">
                   Click to use this template
                 </p>
               </div>

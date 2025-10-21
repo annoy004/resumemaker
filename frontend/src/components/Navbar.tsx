@@ -14,14 +14,14 @@ export default function Navbar() {
   };
 
   return (
-    <div className="flex items-center justify-between px-8 py-4 bg-white shadow-sm border-b">
-      <div className="flex items-center gap-2 text-xl font-semibold text-purple-600">
+    <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 bg-white shadow-sm border-b">
+      <div className="flex items-center gap-2 text-lg sm:text-xl font-semibold text-purple-600 truncate">
         🧾 ResumeXpert Canvas
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         <button
           onClick={handleLogout}
-          className="bg-red-100 text-red-600 px-4 py-2 rounded-md hover:bg-red-200 transition"
+          className="bg-red-100 text-red-600 px-3 sm:px-4 py-1.5 sm:py-2 rounded-md hover:bg-red-200 transition text-sm sm:text-base"
         >
           Logout
         </button>
