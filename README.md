@@ -32,6 +32,7 @@ JWT_SECRET=mysupersecretkey
 ```
 - **DATABASE_URL:** Use your local Postgres database connection string.
 - **JWT_SECRET:** Any random string for signing tokens.
+- **JWT_EXPIRES_IN=7d** 
 
 ---
 
