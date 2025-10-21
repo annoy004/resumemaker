@@ -11,8 +11,6 @@
     "start": "node dist/index.js",
     "studio": "prisma studio",
     "deploy": "npm run build && npm start"
-
-
   },
   "author": "",
   "license": "ISC",
@@ -23,6 +21,7 @@
     "@types/cookie-parser": "^1.4.3",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -32,7 +31,6 @@
     "prisma": "^6.17.1"
   },
   "devDependencies": {
-    "@types/jsonwebtoken": "^9.0.10",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
