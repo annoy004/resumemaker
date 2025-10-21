@@ -27,7 +27,6 @@ const initialState: ResumeState = {
   loading: false,
 };
 
-
 // 🎯 Thunks
 export const fetchResumes = createAsyncThunk<Resume[], string>(
   "resumes/fetchResumes",
@@ -37,7 +36,6 @@ export const fetchResumes = createAsyncThunk<Resume[], string>(
   }
 );
 
-// 🎯 Publish resume (generate shareable link)
 export const publishResume = createAsyncThunk<
   { publicUrl: string; resume: Resume },
   string
@@ -46,7 +44,6 @@ export const publishResume = createAsyncThunk<
   return res.data;
 });
 
-// 🎯 Get a single public resume (for /r/:slug)
 export const getPublicResume = createAsyncThunk<Resume, string>(
   "resumes/getPublicResume",
   async (slug) => {
@@ -54,6 +51,7 @@ export const getPublicResume = createAsyncThunk<Resume, string>(
     return res.data;
   }
 );
+
 export const saveResume = createAsyncThunk<
   Resume,
   { resumeId: string; data: any }
@@ -62,15 +60,66 @@ export const saveResume = createAsyncThunk<
   return res.data;
 });
 
+export const createResume = createAsyncThunk<
+  Resume,
+  { userId: string; title?: string }
+>("resumes/createResume", async (payload) => {
+  const res = await api.post("/resumes", payload);
+  return res.data;
+});
 
+// 🎯 Default resume template (used only once when new resume created)
+const defaultResumeData = {
+  name: "Arnav Singh",
+  designation: "Frontend Developer",
+  summary:
+    "Passionate frontend developer skilled in React, TypeScript, and UI design. Experienced in building responsive, interactive applications.",
+  experience: [
+    {
+      title: "Frontend Developer",
+      company: "Coding Community",
+      period: "2024–Present",
+      location: "Mumbai, India",
+      description:
+        "Built scalable UI with React and Tailwind CSS.\nIntegrated real-time APIs with Socket.IO.\nLed responsive design initiatives.",
+    },
+  ],
+  skills: [
+    { name: "React", level: "Advanced" },
+    { name: "TypeScript", level: "Intermediate" },
+  ],
+  projectsArray: [
+    {
+      title: "Resume Builder App",
+      techStack: "React, Node.js",
+      description: "Built full MERN stack resume builder with live preview.",
+      link: "",
+    },
+  ],
+  educationArray: [
+    {
+      degree: "B.E. in Computer Engineering",
+      institution: "TCET",
+      year: "2022–2024",
+      cgpa: "8.5",
+      details: "",
+    },
+  ],
+  projects: "",
+  education: "",
+  contact:
+    "📧 arnav.singh@example.com\n📱 +91 98765 43210\n🌐 www.arnavportfolio.com",
+  tempSkills: "",
+};
 
-export const createResume = createAsyncThunk<Resume, { userId: string; title?: string }>(
-  "resumes/createResume",
-  async (payload) => {
-    const res = await api.post("/resumes", payload);
-    return res.data;
-  }
-);
+const defaultTheme = {
+  primary: "#2563eb",
+  fontFamily: "Poppins, sans-serif",
+  fontSize: 3,
+  lineHeight: 1.6,
+  pageMargin: 4,
+  sectionSpacing: 2,
+};
 
 // 🎯 Slice
 const resumeSlice = createSlice({
@@ -115,30 +164,50 @@ const resumeSlice = createSlice({
         state.loading = false;
       })
       .addCase(createResume.fulfilled, (state, action) => {
-        state.list.unshift(action.payload);
-        state.currentResume = action.payload;
+        // attach defaults when new resume is created
+        const newResume = {
+          ...action.payload,
+          data: { ...defaultResumeData, ...(action.payload.data || {}) },
+          theme: { ...defaultTheme },
+          template: action.payload.template || "modern",
+        };
+        state.list.unshift(newResume);
+        state.currentResume = newResume;
       })
       .addCase(saveResume.fulfilled, (state, action) => {
-        const updatedResume = action.payload;
-        const index = state.list.findIndex((r) => r.id === updatedResume.id);
+        const updated = action.payload;
+        const index = state.list.findIndex((r) => r.id === updated.id);
         if (index >= 0) {
-          state.list[index] = updatedResume;
+          // Only update backend-managed fields (id, updatedAt, createdAt, publicSlug)
+          state.list[index] = {
+            ...state.list[index],
+            id: updated.id,
+            updatedAt: updated.updatedAt,
+            createdAt: updated.createdAt,
+            publicSlug: updated.publicSlug,
+            // DO NOT overwrite data/template/theme!
+          };
         }
-        if (state.currentResume?.id === updatedResume.id) {
-          state.currentResume = updatedResume;
+        if (state.currentResume?.id === updated.id) {
+          state.currentResume = {
+            ...state.currentResume,
+            id: updated.id,
+            updatedAt: updated.updatedAt,
+            createdAt: updated.createdAt,
+            publicSlug: updated.publicSlug,
+            // DO NOT overwrite user's data/template/theme with backend version!
+          };
         }
       });
   },
 });
 
-export const { 
-  setCurrentResume, 
-  updateResumeData, 
-  updateResumeTheme, 
-  updateResumeTemplate, 
-  clearCurrentResume 
+export const {
+  setCurrentResume,
+  updateResumeData,
+  updateResumeTheme,
+  updateResumeTemplate,
+  clearCurrentResume,
 } = resumeSlice.actions;
+
 export default resumeSlice.reducer;
-
-
-

@@ -36,17 +36,35 @@ export const getResume = async (req: Request, res: Response) => {
 };
 
 export const updateResume = async (req: Request, res: Response) => {
+  const { id } = req.params;
   const { title, data, template, theme } = req.body;
+
   try {
+    // 1️⃣ Check if the resume exists
+    const existing = await prisma.resume.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Resume not found" });
+    }
+
+    // 2️⃣ Update only provided fields
     const updated = await prisma.resume.update({
-      where: { id: req.params.id },
-      data: { title, data, template, theme },
+      where: { id },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(data !== undefined && { data }),
+        ...(template !== undefined && { template }),
+        ...(theme !== undefined && { theme }),
+        updatedAt: new Date(),
+      },
     });
+
     res.json(updated);
   } catch (e: any) {
-    res.status(404).json({ error: 'Not found' });
+    console.error("Error updating resume:", e);
+    res.status(500).json({ error: "Failed to update resume" });
   }
 };
+
 
 export const deleteResume = async (req: Request, res: Response) => {
   try {

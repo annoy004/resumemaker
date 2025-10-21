@@ -106,10 +106,22 @@ export default function CanvasPreview({
 
   const formattedExperience = Array.isArray(resume.experience)
     ? resume.experience
-        .map(
-          (exp) =>
-            `${exp.title} - ${exp.company} (${exp.period})\n${exp.location}\n${exp.description}`
-        )
+        .map((exp) => {
+          const parts = [];
+          if (exp.title) parts.push(exp.title);
+          if (exp.company) parts.push(`- ${exp.company}`);
+          if (exp.period) parts.push(`(${exp.period})`);
+          if (exp.location) parts.push(`- ${exp.location}`);
+          let header = parts.join(' ');
+          if (header.trim().length === 0 && exp.description) {
+            header = '';
+          }
+          return [
+            header.trim(),
+            exp.description ? exp.description.trim() : ''
+          ].filter(Boolean).join('\n');
+        })
+        .filter(line => line.trim() !== '')
         .join("\n\n")
     : "";
 

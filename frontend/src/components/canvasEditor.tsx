@@ -87,12 +87,31 @@ const formatEducation = (arr: EducationItem[]) =>
     )
     .join("\n\n");
 
+// debounce util (in case lodash is not present)
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
+  let timeout: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
+
 export default function CanvasEditor({ onDataChange, onSectionOrderChange }: CanvasEditorProps) {
   const stageRef = useRef<any>(null);
   const dispatch = useAppDispatch();
   const currentResume = useAppSelector((state) => state.resumes.currentResume);
+  const resumeList = useAppSelector((state) => state.resumes.list);
   
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [saveStatus, setSaveStatus] = useState<'idle'|'saving'|'saved'|'error'>('idle');
+  const saveErrorRef = useRef<string | null>(null);
+
+  // On mount, if currentResume is null but resumes exist, select the first resume
+  useEffect(() => {
+    if (!currentResume && resumeList.length > 0) {
+      dispatch(setCurrentResume(resumeList[0])); // Use last edited if you prefer resumeList[resumeList.length-1]
+    }
+  }, [currentResume, resumeList, dispatch]);
 
   // Use Redux state as the single source of truth
   const resume: ResumeData = currentResume?.data || {
@@ -129,8 +148,8 @@ export default function CanvasEditor({ onDataChange, onSectionOrderChange }: Can
         details: "",
       },
     ],
-    projects: "",
-    education: "",
+    projects: "Resume Builder App\nReact, Node.js\nBuilt full MERN stack resume builder with live preview.",
+    education: "B.E. in Computer Engineering\nTCET (2022–2024) — CGPA: 8.5",
     contact: "📧 arnav.singh@example.com\n📱 +91 98765 43210\n🌐 www.arnavportfolio.com",
     tempSkills: "",
   };
@@ -158,19 +177,61 @@ export default function CanvasEditor({ onDataChange, onSectionOrderChange }: Can
 
   // Auto-save to backend every 10 seconds
   useEffect(() => {
+  if (!currentResume?.id) return;
+  console.log(resume);
+
+  const interval = setInterval(() => {
+    dispatch(saveResume({
+      resumeId: currentResume.id,
+      data: { ...resume, theme, template: selectedTemplate }
+    }));
+  }, 10000);
+
+  return () => clearInterval(interval);
+}, [dispatch, currentResume?.id, resume, theme, selectedTemplate]);
+
+  // Debounced save
+  const debouncedSave = useRef(
+    debounce(async () => {
+      if (!currentResume?.id) return;
+      setSaveStatus('saving');
+      try {
+        await dispatch(
+          saveResume({
+            resumeId: currentResume.id,
+            data: { ...resume, theme, template: selectedTemplate },
+          })
+        ).unwrap();
+        setSaveStatus('saved');
+        saveErrorRef.current = null;
+      } catch (e: any) {
+        setSaveStatus('error');
+        saveErrorRef.current = (e?.message || 'Failed to save');
+      }
+    }, 1500)
+  ).current;
+
+  // Listen for data/theme/template changes and trigger debounced save
+  useEffect(() => {
     if (!currentResume?.id) return;
-    console.log(resume);
+    debouncedSave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resume, theme, selectedTemplate, currentResume?.id]);
 
-    const interval = setInterval(() => {
-    dispatch(saveResume({ 
-  resumeId: currentResume.id, 
-  data: { ...resume, theme, template: selectedTemplate } 
-}));
+  // Display save status (simple notification at the top, improve as needed)
+  {/* Save status indicator */}
+  {saveStatus === 'saving' && (
+    <div style={{position: 'fixed', top:0, left:0, right:0, background: '#fde047', color:'#333', zIndex: 3000, textAlign:'center'}}>Saving…</div>
+  )}
+  {saveStatus === 'saved' && (
+    <div style={{position: 'fixed', top:0, left:0, right:0, background:'#bbf7d0', color:'#1c1917', zIndex: 3000, textAlign:'center'}}>All changes saved</div>
+  )}
+  {saveStatus === 'error' && (
+    <div style={{position: 'fixed', top:0, left:0, right:0, background:'#fecaca', color:'#7f1d1d', zIndex: 3000, textAlign: 'center'}}>
+      Error saving! Changes may not be synced. <span>{saveErrorRef.current}</span>
+    </div>
+  )}
 
-    }, 10000); // Auto-save every 10 seconds
-
-    return () => clearInterval(interval);
-  }, [dispatch, currentResume?.id, resume, theme, selectedTemplate]);
 
   const handleEdit = (
     field: string,
@@ -233,33 +294,36 @@ export default function CanvasEditor({ onDataChange, onSectionOrderChange }: Can
 
     const save = () => {
       const newValue = textarea.value.replace(/\s+$/m, "");
-        if (field === "experience") {
+      if (field === "experience") {
         const parsed = newValue
           .split(/\n\n+/)
           .map((block) => block.trim())
-          .filter((block) => block.length > 0)
           .map((block) => {
             const lines = block.split("\n");
-            return {
-              title: lines[0] || "",
-              company: lines[1] || "",
-              period: lines[2] || "",
-              location: lines[3] || "",
-              description: lines.slice(4).join("\n").trim(),
+            const obj = {
+              title: (lines[0] || "").trim(),
+              company: (lines[1] || "").trim(),
+              period: (lines[2] || "").trim(),
+              location: (lines[3] || "").trim(),
+              description: (lines.slice(4).join("\n") || "").trim(),
             };
-          });
+            // Only return if some main data is present:
+            if (obj.title || obj.company) return obj;
+            return null;
+          })
+          .filter((item) => item && (item.title || item.company));
         dispatch(updateResumeData({ experience: parsed }));
       } else if (field === "skills") {
-          const parsed = newValue.split(",").map((s) => {
-            const match = s.match(/(.*)\((.*)\)/);
-            return match
-              ? { name: match[1].trim(), level: match[2].trim() }
-              : { name: s.trim(), level: "Intermediate" };
-          });
+        const parsed = newValue.split(",").map((s) => {
+          const match = s.match(/(.*)\((.*)\)/);
+          return match
+            ? { name: match[1].trim(), level: match[2].trim() }
+            : { name: s.trim(), level: "Intermediate" };
+        });
         dispatch(updateResumeData({ skills: parsed }));
       } else {
         dispatch(updateResumeData({ [field]: newValue }));
-        }
+      }
 
       if (textarea.parentElement) textarea.parentElement.removeChild(textarea);
     };
@@ -402,13 +466,13 @@ export default function CanvasEditor({ onDataChange, onSectionOrderChange }: Can
           formatProjects={formatProjects as any}
           formatEducation={formatEducation as any}
         />
-      </div>
+          </div>
 
       {/* Desktop Layout: Stack canvas then forms (no persistent sidebars) */}
       <div className="hidden lg:block w-full px-3 sm:px-4 lg:px-6 py-4 lg:py-6 max-w-[1200px] mx-auto">
         <div className="w-full mb-4">
-          <CanvasSaveShare resume={resume} theme={theme} template={selectedTemplate} />
-        </div>
+            <CanvasSaveShare resume={resume} theme={theme} template={selectedTemplate} />
+          </div>
         <div className="w-full overflow-x-auto bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg shadow-sm p-3">
             <CanvasPreview
               stageRef={stageRef}
