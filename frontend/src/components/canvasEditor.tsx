@@ -6,6 +6,14 @@ import DesignFontPanel from "./DesignFontPanel";
 import TemplateSelector from "./TemplateSelector";
 import MobileTopBar from "./editor/MobileTopBar";
 import FormsPanel from "./editor/FormsPanel";
+import { useAppDispatch, useAppSelector } from "../redux/hook";
+import { 
+  setCurrentResume, 
+  updateResumeData, 
+  updateResumeTheme, 
+  updateResumeTemplate,
+  saveResume 
+} from "../redux/resumeSlice";
 
 interface ExperienceItem {
   title: string;
@@ -81,21 +89,23 @@ const formatEducation = (arr: EducationItem[]) =>
 
 export default function CanvasEditor({ onDataChange, onSectionOrderChange }: CanvasEditorProps) {
   const stageRef = useRef<any>(null);
+  const dispatch = useAppDispatch();
+  const currentResume = useAppSelector((state) => state.resumes.currentResume);
+  
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
-  const [resume, setResume] = useState<ResumeData>({
+  // Use Redux state as the single source of truth
+  const resume: ResumeData = currentResume?.data || {
     name: "Arnav Singh",
     designation: "Frontend Developer",
-    summary:
-      "Passionate frontend developer skilled in React, TypeScript, and UI design. Experienced in building responsive, interactive applications.",
+    summary: "Passionate frontend developer skilled in React, TypeScript, and UI design. Experienced in building responsive, interactive applications.",
     experience: [
       {
         title: "Frontend Developer",
         company: "Coding Community",
         period: "2024–Present",
         location: "Mumbai, India",
-        description:
-          "Built scalable UI with React and Tailwind CSS.\nIntegrated real-time APIs with Socket.IO.\nLed responsive design initiatives.",
+        description: "Built scalable UI with React and Tailwind CSS.\nIntegrated real-time APIs with Socket.IO.\nLed responsive design initiatives.",
       },
     ],
     skills: [
@@ -121,18 +131,20 @@ export default function CanvasEditor({ onDataChange, onSectionOrderChange }: Can
     ],
     projects: "",
     education: "",
-    contact:
-      "📧 arnav.singh@example.com\n📱 +91 98765 43210\n🌐 www.arnavportfolio.com",
+    contact: "📧 arnav.singh@example.com\n📱 +91 98765 43210\n🌐 www.arnavportfolio.com",
     tempSkills: "",
-  });
+  };
 
-  const [theme, setTheme] = useState<Theme>({
+  const theme: Theme = currentResume?.theme || {
     primary: "#2563eb",
     fontFamily: "Poppins, sans-serif",
-  });
+    fontSize: 3,
+    lineHeight: 1.6,
+    pageMargin: 4,
+    sectionSpacing: 2,
+  };
 
-  const [selectedTemplate, setSelectedTemplate] =
-    useState<"modern" | "elegant" | "professional" | "creative" | "minimal">("modern");
+  const selectedTemplate = (currentResume?.template as any) || "modern";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isTemplateSidebarOpen, setIsTemplateSidebarOpen] = useState(false);
   const [sectionOrder, setSectionOrder] = useState<string[]>([
@@ -144,13 +156,21 @@ export default function CanvasEditor({ onDataChange, onSectionOrderChange }: Can
     "contact",
   ]);
 
+  // Auto-save to backend every 10 seconds
   useEffect(() => {
-    setResume((prev) => ({
-      ...prev,
-      projects: formatProjects(prev.projectsArray),
-      education: formatEducation(prev.educationArray),
-    }));
-  }, [resume.projectsArray, resume.educationArray]);
+    if (!currentResume?.id) return;
+    console.log(resume);
+
+    const interval = setInterval(() => {
+    dispatch(saveResume({ 
+  resumeId: currentResume.id, 
+  data: { ...resume, theme, template: selectedTemplate } 
+}));
+
+    }, 10000); // Auto-save every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [dispatch, currentResume?.id, resume, theme, selectedTemplate]);
 
   const handleEdit = (
     field: string,
@@ -213,37 +233,33 @@ export default function CanvasEditor({ onDataChange, onSectionOrderChange }: Can
 
     const save = () => {
       const newValue = textarea.value.replace(/\s+$/m, "");
-      setResume((prev) => {
         if (field === "experience") {
-          const parsed = newValue
-            .split(/\n\n+/)
-            .map((block) => block.trim())
-            .filter((block) => block.length > 0)
-            .map((block) => {
-              const lines = block.split("\n");
-              return {
-                title: lines[0] || "",
-                company: lines[1] || "",
-                period: lines[2] || "",
-                location: lines[3] || "",
-                description: lines.slice(4).join("\n").trim(),
-              };
-            });
-          return { ...prev, experience: parsed };
-        }
-
-        if (field === "skills") {
+        const parsed = newValue
+          .split(/\n\n+/)
+          .map((block) => block.trim())
+          .filter((block) => block.length > 0)
+          .map((block) => {
+            const lines = block.split("\n");
+            return {
+              title: lines[0] || "",
+              company: lines[1] || "",
+              period: lines[2] || "",
+              location: lines[3] || "",
+              description: lines.slice(4).join("\n").trim(),
+            };
+          });
+        dispatch(updateResumeData({ experience: parsed }));
+      } else if (field === "skills") {
           const parsed = newValue.split(",").map((s) => {
             const match = s.match(/(.*)\((.*)\)/);
             return match
               ? { name: match[1].trim(), level: match[2].trim() }
               : { name: s.trim(), level: "Intermediate" };
           });
-          return { ...prev, skills: parsed };
+        dispatch(updateResumeData({ skills: parsed }));
+      } else {
+        dispatch(updateResumeData({ [field]: newValue }));
         }
-
-        return { ...prev, [field]: newValue };
-      });
 
       if (textarea.parentElement) textarea.parentElement.removeChild(textarea);
     };
@@ -274,6 +290,16 @@ export default function CanvasEditor({ onDataChange, onSectionOrderChange }: Can
     setExpandedSections(updated);
   };
 
+  // Custom setResume function that uses Redux
+  const setResume = (updater: any) => {
+    if (typeof updater === 'function') {
+      const newData = updater(resume);
+      dispatch(updateResumeData(newData));
+    } else {
+      dispatch(updateResumeData(updater));
+    }
+  };
+
 
   return (
     <div className="w-full min-h-screen bg-gray-50">
@@ -299,7 +325,7 @@ export default function CanvasEditor({ onDataChange, onSectionOrderChange }: Can
               <TemplateSelector
                 selectedTemplate={selectedTemplate}
                 onTemplateChange={(template) => {
-                  setSelectedTemplate(template);
+                  dispatch(updateResumeTemplate(template));
                   setIsTemplateSidebarOpen(false);
                 }}
               />
@@ -329,9 +355,9 @@ export default function CanvasEditor({ onDataChange, onSectionOrderChange }: Can
             <div className="p-3">
               <DesignFontPanel
                 theme={theme}
-                onThemeChange={(updates) =>
-                  setTheme((prev) => ({ ...prev, ...updates }))
-                }
+                onThemeChange={(updates) => {
+                  dispatch(updateResumeTheme(updates));
+                }}
               />
             </div>
           </div>
@@ -384,19 +410,19 @@ export default function CanvasEditor({ onDataChange, onSectionOrderChange }: Can
           <CanvasSaveShare resume={resume} theme={theme} template={selectedTemplate} />
         </div>
         <div className="w-full overflow-x-auto bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg shadow-sm p-3">
-          <CanvasPreview
-            stageRef={stageRef}
-            resume={resume}
-            theme={theme}
-            selectedTemplate={selectedTemplate}
-            onEdit={handleEdit}
-            sectionOrder={sectionOrder}
-            onSectionOrderChange={(newOrder) => {
-              setSectionOrder(newOrder);
-              onSectionOrderChange?.(newOrder);
-            }}
-          />
-        </div>
+            <CanvasPreview
+              stageRef={stageRef}
+              resume={resume}
+              theme={theme}
+              selectedTemplate={selectedTemplate}
+              onEdit={handleEdit}
+              sectionOrder={sectionOrder}
+              onSectionOrderChange={(newOrder) => {
+                setSectionOrder(newOrder);
+                onSectionOrderChange?.(newOrder);
+              }}
+            />
+          </div>
         <div className="mt-6">
           <FormsPanel
             wrapperClassName="w-full space-y-3"

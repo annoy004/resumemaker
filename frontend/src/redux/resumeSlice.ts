@@ -17,14 +17,16 @@ export interface Resume {
 // 🎯 Define state structure
 interface ResumeState {
   list: Resume[];
+  currentResume: Resume | null;
   loading: boolean;
 }
 
-// 🎯 Initial state
 const initialState: ResumeState = {
   list: [],
+  currentResume: null,
   loading: false,
 };
+
 
 // 🎯 Thunks
 export const fetchResumes = createAsyncThunk<Resume[], string>(
@@ -52,6 +54,14 @@ export const getPublicResume = createAsyncThunk<Resume, string>(
     return res.data;
   }
 );
+export const saveResume = createAsyncThunk<
+  Resume,
+  { resumeId: string; data: any }
+>("resumes/saveResume", async ({ resumeId, data }) => {
+  const res = await api.put(`/resumes/${resumeId}`, { data });
+  return res.data;
+});
+
 
 
 export const createResume = createAsyncThunk<Resume, { userId: string; title?: string }>(
@@ -66,33 +76,69 @@ export const createResume = createAsyncThunk<Resume, { userId: string; title?: s
 const resumeSlice = createSlice({
   name: "resumes",
   initialState,
-  reducers: {},
+  reducers: {
+    setCurrentResume: (state, action: PayloadAction<Resume>) => {
+      state.currentResume = action.payload;
+    },
+    updateResumeData: (state, action: PayloadAction<any>) => {
+      if (state.currentResume) {
+        state.currentResume.data = {
+          ...state.currentResume.data,
+          ...action.payload,
+        };
+      }
+    },
+    updateResumeTheme: (state, action: PayloadAction<any>) => {
+      if (state.currentResume) {
+        state.currentResume.theme = {
+          ...state.currentResume.theme,
+          ...action.payload,
+        };
+      }
+    },
+    updateResumeTemplate: (state, action: PayloadAction<string>) => {
+      if (state.currentResume) {
+        state.currentResume.template = action.payload;
+      }
+    },
+    clearCurrentResume: (state) => {
+      state.currentResume = null;
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchResumes.pending, (state) => {
         state.loading = true;
       })
-      .addCase(fetchResumes.fulfilled, (state, action: PayloadAction<Resume[]>) => {
+      .addCase(fetchResumes.fulfilled, (state, action) => {
         state.list = action.payload;
         state.loading = false;
       })
-      .addCase(fetchResumes.rejected, (state) => {
-        state.loading = false;
-      })
-      .addCase(createResume.fulfilled, (state, action: PayloadAction<Resume>) => {
+      .addCase(createResume.fulfilled, (state, action) => {
         state.list.unshift(action.payload);
+        state.currentResume = action.payload;
       })
-      .addCase(publishResume.fulfilled, (state, action) => {
-  const { resume } = action.payload;
-  const index = state.list.findIndex((r) => r.id === resume.id);
-  if (index >= 0) state.list[index] = resume;
-})
-.addCase(getPublicResume.fulfilled, (state, action) => {
-  // optional: store last opened public resume
-  state.list = [action.payload];
-});
-
+      .addCase(saveResume.fulfilled, (state, action) => {
+        const updatedResume = action.payload;
+        const index = state.list.findIndex((r) => r.id === updatedResume.id);
+        if (index >= 0) {
+          state.list[index] = updatedResume;
+        }
+        if (state.currentResume?.id === updatedResume.id) {
+          state.currentResume = updatedResume;
+        }
+      });
   },
 });
 
+export const { 
+  setCurrentResume, 
+  updateResumeData, 
+  updateResumeTheme, 
+  updateResumeTemplate, 
+  clearCurrentResume 
+} = resumeSlice.actions;
 export default resumeSlice.reducer;
+
+
+
