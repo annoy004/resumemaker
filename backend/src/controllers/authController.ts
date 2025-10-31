@@ -1,9 +1,9 @@
 import { Request, Response } from "express";
-import jwt, { Secret } from "jsonwebtoken";
+import jwt, { Secret, SignOptions } from "jsonwebtoken";
 import { prisma } from "../prisma";
 
-const JWT_SECRET: Secret = process.env.JWT_SECRET || "default_secret";
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const JWT_SECRET: Secret = (process.env.JWT_SECRET ?? "default_secret") as Secret;
+const JWT_EXPIRES_IN: SignOptions["expiresIn"] = (process.env.JWT_EXPIRES_IN ?? "7d") as SignOptions["expiresIn"];
 
 export const googleAuth = async (req: Request, res: Response) => {
   try {
