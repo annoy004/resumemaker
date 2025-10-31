@@ -2,15 +2,19 @@
   "name": "y",
   "version": "1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": "20.x"
+  },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
   },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "build": "prisma generate && tsc",
+    "start": "prisma migrate deploy && node dist/index.js",
     "studio": "prisma studio",
-    "deploy": "npm run build && npm start"
+    "deploy": "npm run build && npm start",
+    "postinstall": "prisma generate"
   },
   "author": "",
   "license": "ISC",

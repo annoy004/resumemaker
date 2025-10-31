@@ -24,12 +24,21 @@ async function testDB() {
 testDB();
 
 // ✅ Middleware
-app.use(cookieParser()); // <--- parse cookies from client requests
+app.use(cookieParser());
 app.use(express.json());
+
+// CORS
+const corsOriginsEnv = process.env.CORS_ORIGIN || "http://localhost:5173,http://localhost:3000";
+const allowedOrigins = corsOriginsEnv.split(",").map((o) => o.trim()).filter(Boolean);
+
 app.use(
   cors({
-    origin: "http://localhost:3000",
-    credentials: true, // <--- allow cookies to be sent
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
   })
 );
 
