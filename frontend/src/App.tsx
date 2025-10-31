@@ -3,11 +3,29 @@ import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
 import PublicResume from "./pages/PublicResume";
 import Login from "./pages/Login";
-import { ReactElement } from "react";
+import { ReactElement, useEffect, useState } from "react";
+import api from "./api/axiosInstance";
 
 const Protected = ({ children }: { children: ReactElement }): ReactElement => {
-  const user = localStorage.getItem("user");
-  return user ? children : <Navigate to="/login" />;
+  const [status, setStatus] = useState<"checking" | "authed" | "unauthed">("checking");
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        await api.get("/auth/me", { withCredentials: true });
+        if (mounted) setStatus("authed");
+      } catch {
+        if (mounted) setStatus("unauthed");
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (status === "checking") return <div />;
+  return status === "authed" ? children : <Navigate to="/login" />;
 };
 
 function App() {
