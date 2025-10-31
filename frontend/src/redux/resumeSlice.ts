@@ -1,5 +1,29 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import api from "../api/axiosInstance";
+
+function loadLocalResumes(): Resume[] {
+  try {
+    const raw = localStorage.getItem("resumes");
+    return raw ? (JSON.parse(raw) as Resume[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalResumes(resumes: Resume[]): void {
+  localStorage.setItem("resumes", JSON.stringify(resumes));
+}
+
+function generateId(): string {
+  return crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+}
+
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "")
+    .slice(0, 50);
+}
 
 // 🎯 Define the type for a Resume
 export interface Resume {
@@ -28,11 +52,10 @@ const initialState: ResumeState = {
 };
 
 // 🎯 Thunks
-export const fetchResumes = createAsyncThunk<Resume[], string>(
+export const fetchResumes = createAsyncThunk<Resume[], string | undefined>(
   "resumes/fetchResumes",
-  async (userId) => {
-    const res = await api.get(`/resumes?userId=${userId}`);
-    return res.data;
+  async () => {
+    return loadLocalResumes();
   }
 );
 
@@ -40,15 +63,23 @@ export const publishResume = createAsyncThunk<
   { publicUrl: string; resume: Resume },
   string
 >("resumes/publishResume", async (resumeId) => {
-  const res = await api.post(`/resumes/${resumeId}/publish`);
-  return res.data;
+  const resumes = loadLocalResumes();
+  const idx = resumes.findIndex((r) => r.id === resumeId);
+  if (idx < 0) throw new Error("Resume not found");
+  const slug = resumes[idx].publicSlug || `${slugify(resumes[idx].title || "resume")}-${generateId().slice(0, 6)}`;
+  resumes[idx].publicSlug = slug;
+  saveLocalResumes(resumes);
+  const publicUrl = `${window.location.origin}/r/${slug}`;
+  return { publicUrl, resume: resumes[idx] };
 });
 
 export const getPublicResume = createAsyncThunk<Resume, string>(
   "resumes/getPublicResume",
   async (slug) => {
-    const res = await api.get(`/resumes/public/${slug}`);
-    return res.data;
+    const resumes = loadLocalResumes();
+    const found = resumes.find((r) => r.publicSlug === slug);
+    if (!found) throw new Error("Not found");
+    return found;
   }
 );
 
@@ -56,16 +87,38 @@ export const saveResume = createAsyncThunk<
   Resume,
   { resumeId: string; data: any }
 >("resumes/saveResume", async ({ resumeId, data }) => {
-  const res = await api.put(`/resumes/${resumeId}`, { data });
-  return res.data;
+  const resumes = loadLocalResumes();
+  const idx = resumes.findIndex((r) => r.id === resumeId);
+  if (idx < 0) throw new Error("Resume not found");
+  resumes[idx] = {
+    ...resumes[idx],
+    data: { ...(resumes[idx].data || {}), ...data },
+    updatedAt: new Date().toISOString(),
+  } as Resume;
+  saveLocalResumes(resumes);
+  return resumes[idx];
 });
 
 export const createResume = createAsyncThunk<
   Resume,
-  { userId: string; title?: string }
+  { userId?: string; title?: string }
 >("resumes/createResume", async (payload) => {
-  const res = await api.post("/resumes", payload);
-  return res.data;
+  const resumes = loadLocalResumes();
+  const now = new Date().toISOString();
+  const newResume: Resume = {
+    id: generateId(),
+    title: payload.title || "Untitled Resume",
+    userId: "local",
+    createdAt: now,
+    updatedAt: now,
+    data: {},
+    template: "modern",
+    theme: {},
+    publicSlug: null,
+  };
+  resumes.unshift(newResume);
+  saveLocalResumes(resumes);
+  return newResume;
 });
 
 // 🎯 Default resume template (used only once when new resume created)
@@ -173,6 +226,7 @@ const resumeSlice = createSlice({
         };
         state.list.unshift(newResume);
         state.currentResume = newResume;
+        saveLocalResumes(state.list);
       })
       .addCase(saveResume.fulfilled, (state, action) => {
         const updated = action.payload;
@@ -198,6 +252,7 @@ const resumeSlice = createSlice({
             // DO NOT overwrite user's data/template/theme with backend version!
           };
         }
+        saveLocalResumes(state.list);
       });
   },
 });
